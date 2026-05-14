@@ -225,6 +225,58 @@ Until there's code, GitNexus tools return "no index" and the impact-check hook i
 
 ---
 
+## 7.5 M365 mail credentials (production workstation only)
+
+Cortex reads `Knowledge@technijian.com` via cert auth using the **Technijian-Agent-Harness** Azure AD app. Full wiring is in the vault: [`claude-memory/topics/m365_mail_credentials.md`](C:/Users/rjain/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/topics/m365_mail_credentials.md).
+
+> **DO NOT do this section on a dev workstation.** The cert-import + Graph connection lets this machine read the shared mailbox; you only want the production / final workstation to do that. On a dev box, skip §7.5 entirely.
+
+### One-time cert import (production workstation)
+
+```powershell
+$pfx  = 'C:\Users\<USER>\OneDrive - Technijian, Inc\Documents\VSCODE\keys\Technijian-Agent-Harness.pfx'
+$pwd  = ConvertTo-SecureString 'T3chn!j2n-AgentCert-2026' -AsPlainText -Force
+Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pwd
+```
+
+Verify it landed:
+
+```powershell
+Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Thumbprint -eq '6119074C16A1EC9619159106CB6390CAD77A8399' }
+```
+
+### Smoke test (production workstation)
+
+```powershell
+Connect-MgGraph `
+  -TenantId 'cab8077a-3f42-4277-b7bd-5c9023e826d8' `
+  -ClientId 'a8a20c7f-88bf-4681-989e-cdd790a9277c' `
+  -CertificateThumbprint '6119074C16A1EC9619159106CB6390CAD77A8399' `
+  -NoWelcome
+Get-MgUserMailFolder -UserId 'knowledge@technijian.com' -Top 10 | Select DisplayName, TotalItemCount, UnreadItemCount
+```
+
+Expect: standard folder list (Inbox, Archive, Sent Items, etc.) with the Inbox count matching what's currently sitting in the shared mailbox. If you see `403 ErrorAccessDenied`, admin consent for `Mail.ReadWrite` on the Technijian tenant has lapsed — re-consent via Azure portal → Enterprise apps → Technijian-Agent-Harness → Permissions → Grant admin consent.
+
+### Removing the cert from a dev box
+
+If you accidentally imported the cert on a dev / non-production workstation:
+
+```powershell
+Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Thumbprint -eq '6119074C16A1EC9619159106CB6390CAD77A8399' } | Remove-Item -Confirm:$false
+Disconnect-MgGraph
+```
+
+### Cert renewal (2028-04 reminder)
+
+The cert expires **2028-05-04**. Set a calendar reminder for **2028-04-04** to:
+1. Generate a new cert in Azure AD app registration → Certificates & secrets
+2. Update the thumbprint in the vault topic [`m365_mail_credentials.md`](C:/Users/rjain/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/topics/m365_mail_credentials.md) and `keys/m365-agent-harness.md`
+3. Re-import on the production workstation
+4. Smoke-test, then remove the old cert from `Cert:\CurrentUser\My`
+
+---
+
 ## 8. Cortex runtime (Phase 1 onward — not needed for the memory stack)
 
 When you're ready to actually run Cortex:
