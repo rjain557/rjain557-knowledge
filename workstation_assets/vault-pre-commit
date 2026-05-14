@@ -1,0 +1,31 @@
+#!/bin/sh
+# Vault pre-commit hook for rjain557-knowledge / Cortex.
+# Nudge, never block. Reads HEALTH.md and warns if status is RED.
+# Validates CHANGELOG.md additions if it changed.
+
+VAULT_ROOT="$(git rev-parse --show-toplevel)"
+HEALTH="$VAULT_ROOT/claude-memory/HEALTH.md"
+
+if [ -f "$HEALTH" ]; then
+  STATUS=$(grep -E '^status:' "$HEALTH" | head -1 | sed 's/^status:[[:space:]]*//')
+  if [ "$STATUS" = "RED" ]; then
+    echo ""
+    echo "WARNING: vault HEALTH.md status is RED. Commit allowed but consider /review or /graduate."
+    echo ""
+  fi
+fi
+
+# Validate CHANGELOG entries if it's being committed
+if git diff --cached --name-only | grep -q '^claude-memory/CHANGELOG.md$'; then
+  ADDED=$(git diff --cached "$VAULT_ROOT/claude-memory/CHANGELOG.md" | grep '^+- ')
+  if [ -n "$ADDED" ]; then
+    if ! echo "$ADDED" | grep -qE '\`\[(bootstrap|consolidate|reorg|health|manual|contradiction|replaced|archive)\]\`'; then
+      echo ""
+      echo "WARNING: CHANGELOG additions don't appear to use a tag prefix (bootstrap|consolidate|reorg|health|manual|contradiction|replaced|archive)."
+      echo "Commit allowed — but format your entries as: - \`[tag]\` description"
+      echo ""
+    fi
+  fi
+fi
+
+exit 0

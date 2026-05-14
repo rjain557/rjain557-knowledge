@@ -1,0 +1,88 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+secrets/
+credentials.json
+config/secrets.yaml
+
+# --- SQL Server / DB ---
+*.bak
+*.mdf
+*.ldf
+*.ndf
+*.trc
+*.trn
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- GitNexus ---
+.gitnexus/
+
+# --- Claude Code ---
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/file-history/
+
+# --- Logs / temp ---
+*.log
+logs/
+tmp/
+temp/
+
+# --- Project-specific (Cortex) ---
+# Vault writer staging area
+_inbox_staging/
+# Whisper / yt-dlp cached media
+extraction_cache/
+# Vector index dumps (regeneratable)
+*.vec
+*.diskann
