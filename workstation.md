@@ -4,22 +4,22 @@ This document is the portable setup guide for the **Cortex / Inbox Brain** stack
 
 It assumes:
 
-- Windows 11 (PowerShell 7+ as default shell)
+- Windows Server / Windows 11 (PowerShell 7+ as default shell)
 - The Obsidian vault for this repo lives in OneDrive and is already synced to `<USER>\OneDrive - Technijian, Inc\Documents\obsidian\rjain557-knowledge\rjain557-knowledge`
-- This repo is checked out at `C:\vscode\rjain557-knowledge\rjain557-knowledge`
+- This repo is checked out at `D:\VSCode\rjain557-knowledge\rjain557-knowledge` (production workstation default; the dev workstation used `C:\vscode\...`)
 
-If your paths differ, edit the `## 0. Path constants` section and search/replace through the rest. None of the persisted state hard-codes a username — only the bootstrap step does.
+If your paths differ, edit the `## 0. Path constants` section and search/replace through the rest.
 
 ---
 
 ## 0. Path constants
 
-| Symbol | Default value | What it is |
+| Symbol | Default value (production workstation) | What it is |
 |---|---|---|
-| `$REPO` | `C:\vscode\rjain557-knowledge\rjain557-knowledge` | Source code + `.claude/` config |
-| `$VAULT` | `<USER>\OneDrive - Technijian, Inc\Documents\obsidian\rjain557-knowledge\rjain557-knowledge` | Obsidian vault containing `claude-memory/` |
-| `$CLAUDE_HOME` | `<USER>\.claude` | Per-user Claude Code state, settings, hooks, projects |
-| `$AUTO_MEM` | `$CLAUDE_HOME\projects\c--vscode-rjain557-knowledge-rjain557-knowledge\memory` | Auto-memory dir (slug derived from `$REPO` path) |
+| `$REPO` | `D:\VSCode\rjain557-knowledge\rjain557-knowledge` | Source code + `.claude/` config |
+| `$VAULT` | `C:\Users\Administrator\OneDrive - Technijian, Inc\Documents\obsidian\rjain557-knowledge\rjain557-knowledge` | Obsidian vault containing `claude-memory/` |
+| `$CLAUDE_HOME` | `C:\Users\Administrator\.claude` | Per-user Claude Code state, settings, hooks, projects |
+| `$AUTO_MEM` | `$CLAUDE_HOME\projects\d--VSCode-rjain557-knowledge-rjain557-knowledge\memory` | Auto-memory dir (slug derived from `$REPO` path; preserves the case of the path components) |
 
 ---
 
@@ -118,10 +118,10 @@ If missing on a fresh workstation: copy them from the previous workstation's `$C
 Open `$CLAUDE_HOME\obsidian-vault-map.json`. Confirm it contains:
 
 ```json
-"c:/vscode/rjain557-knowledge": "C:/Users/<USER>/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge"
+"d:/vscode/rjain557-knowledge": "C:/Users/Administrator/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge"
 ```
 
-If your username differs from `rjain` or your repo lives elsewhere, edit the key and value to match. The key is matched case-insensitively against `cwd` by `log-turn.js`.
+If your repo lives elsewhere, edit the key and value to match. The key is matched case-insensitively against `cwd` by `log-turn.js`.
 
 ---
 
@@ -129,10 +129,10 @@ If your username differs from `rjain` or your repo lives elsewhere, edit the key
 
 ```powershell
 New-Item -ItemType Directory -Path $AUTO_MEM -Force | Out-Null
-New-Item -ItemType Directory -Path "$CLAUDE_HOME\projects\c--vscode-rjain557-knowledge-rjain557-knowledge\conversation-log" -Force | Out-Null
+New-Item -ItemType Directory -Path "$CLAUDE_HOME\projects\d--VSCode-rjain557-knowledge-rjain557-knowledge\conversation-log" -Force | Out-Null
 ```
 
-If you cloned the repo to a different path, the slug changes. Derive it: lowercase the cwd, replace `:` and every `\` or `/` with `-`, strip leading/trailing dashes. Example: `c:\vscode\foo\bar` → `c--vscode-foo-bar`.
+If you cloned the repo to a different path, the slug changes. Derive it: take the cwd, replace `:` and every `\` or `/` with `-`, strip leading/trailing dashes. The harness preserves the original case of path components (e.g. `D:\VSCode\foo` → `d--VSCode-foo`, not `d--vscode-foo`).
 
 If migrating from another workstation, copy the existing `MEMORY.md` and any `*.md` feedback/preference files from the prior `$AUTO_MEM` into the new one so feedback persists.
 
@@ -197,12 +197,12 @@ Get-Content $REPO\.claude\settings.json | Select-Object -First 5
 Get-Content $REPO\.claude\mcp.json
 ```
 
-The hooks all reference absolute paths that begin with `c:/vscode/rjain557-knowledge/rjain557-knowledge/` and `C:/Users/rjain/OneDrive - Technijian, Inc/...`. If you cloned to a different location or your username is different:
+The hooks all reference absolute paths that begin with `D:/VSCode/rjain557-knowledge/rjain557-knowledge/` and `C:/Users/Administrator/OneDrive - Technijian, Inc/...`. If you cloned to a different location or your username is different:
 
-1. Update `$REPO\.claude\settings.json` — replace every `c:/vscode/rjain557-knowledge/rjain557-knowledge/` with your `$REPO` value.
+1. Update `$REPO\.claude\settings.json` — replace every `D:/VSCode/rjain557-knowledge/rjain557-knowledge/` with your `$REPO` value, and every `C:/Users/Administrator/...` with your `$VAULT` value.
 2. Update `$REPO\.claude\hooks\_lib.ps1` — change `Get-VaultRoot` to return your `$VAULT`.
 3. Update `$REPO\CLAUDE.md` Layer 1 / Layer 2 location strings.
-4. Update `$REPO\.claude\hooks\consolidate.ps1` and `preference-extract.ps1` — replace `c--vscode-rjain557-knowledge-rjain557-knowledge` with your slug.
+4. Update `$REPO\.claude\hooks\consolidate.ps1` and `preference-extract.ps1` — replace `d--VSCode-rjain557-knowledge-rjain557-knowledge` with your slug.
 
 (One day this gets templated. For now it's a fast search/replace.)
 
@@ -227,14 +227,14 @@ Until there's code, GitNexus tools return "no index" and the impact-check hook i
 
 ## 7.5 M365 mail credentials (production workstation only)
 
-Cortex reads `Knowledge@technijian.com` via cert auth using the **Technijian-Agent-Harness** Azure AD app. Full wiring is in the vault: [`claude-memory/topics/m365_mail_credentials.md`](C:/Users/rjain/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/topics/m365_mail_credentials.md).
+Cortex reads `Knowledge@technijian.com` via cert auth using the **Technijian-Agent-Harness** Azure AD app. Full wiring is in the vault: [`claude-memory/topics/m365_mail_credentials.md`](C:/Users/Administrator/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/topics/m365_mail_credentials.md).
 
 > **DO NOT do this section on a dev workstation.** The cert-import + Graph connection lets this machine read the shared mailbox; you only want the production / final workstation to do that. On a dev box, skip §7.5 entirely.
 
 ### One-time cert import (production workstation)
 
 ```powershell
-$pfx  = 'C:\Users\<USER>\OneDrive - Technijian, Inc\Documents\VSCODE\keys\Technijian-Agent-Harness.pfx'
+$pfx  = 'C:\Users\Administrator\OneDrive - Technijian, Inc\Documents\VSCODE\keys\Technijian-Agent-Harness.pfx'
 $pwd  = ConvertTo-SecureString 'T3chn!j2n-AgentCert-2026' -AsPlainText -Force
 Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pwd
 ```
@@ -271,7 +271,7 @@ Disconnect-MgGraph
 
 The cert expires **2028-05-04**. Set a calendar reminder for **2028-04-04** to:
 1. Generate a new cert in Azure AD app registration → Certificates & secrets
-2. Update the thumbprint in the vault topic [`m365_mail_credentials.md`](C:/Users/rjain/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/topics/m365_mail_credentials.md) and `keys/m365-agent-harness.md`
+2. Update the thumbprint in the vault topic [`m365_mail_credentials.md`](C:/Users/Administrator/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/topics/m365_mail_credentials.md) and `keys/m365-agent-harness.md`
 3. Re-import on the production workstation
 4. Smoke-test, then remove the old cert from `Cert:\CurrentUser\My`
 
@@ -418,4 +418,4 @@ $CLAUDE_HOME\                                ← per-user Claude Code state
 
 ---
 
-**Last updated:** 2026-05-14 (initial bootstrap on the development workstation).
+**Last updated:** 2026-05-14 — bootstrap completed on the production workstation (`D:\VSCode\rjain557-knowledge\rjain557-knowledge`, user `Administrator`). SQL Server 2025 Enterprise (17.0.1115.1) cortex database created and migrations 0001–0007 applied.

@@ -2,7 +2,7 @@
   "_comment": "Repo-local MCP servers. GitNexus runs as a global server that auto-discovers indexed repos via its registry. It's safe to add even before `gitnexus analyze` has been run — the server starts with 0 repos and discovers them lazily once indexed.",
   "mcpServers": {
     "gitnexus": {
-      "command": "C:/Users/rjain/AppData/Roaming/npm/gitnexus.cmd",
+      "command": "C:/Users/Administrator/AppData/Roaming/npm/gitnexus.cmd",
       "args": ["mcp"]
     }
   }

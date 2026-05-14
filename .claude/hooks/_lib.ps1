@@ -4,7 +4,7 @@
 $ErrorActionPreference = 'Stop'
 
 function Get-VaultRoot {
-    'C:/Users/rjain/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge'
+    'C:/Users/Administrator/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge'
 }
 
 function Get-MemoryRoot {

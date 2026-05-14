@@ -1,13 +1,14 @@
 {
-  "_comment": "Repo-local Claude Code settings for rjain557-knowledge / Cortex. Layered ON TOP of ~/.claude/settings.json — these hooks add to (not replace) the user-global ones.",
+  "_comment": "Repo-local Claude Code settings for rjain557-knowledge / Cortex. Layered ON TOP of ~/.claude/settings.json — these hooks add to (not replace) the user-global ones. Production workstation paths: D:/VSCode + C:/Users/Administrator.",
   "permissions": {
     "allow": [
-      "Bash(git -C \"C:/Users/rjain/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge\":*)",
-      "Bash(pwsh -File \"c:/vscode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/*.ps1\":*)",
-      "Read(//c/Users/rjain/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/**)",
-      "Read(//c/vscode/rjain557-knowledge/**)",
-      "Edit(//c/Users/rjain/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/**)",
-      "Write(//c/Users/rjain/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/**)"
+      "Bash(git -C \"C:/Users/Administrator/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge\":*)",
+      "Bash(pwsh -File \"D:/VSCode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/*.ps1\":*)",
+      "Read(//c/Users/Administrator/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/**)",
+      "Read(//d/vscode/rjain557-knowledge/**)",
+      "Read(//d/VSCode/rjain557-knowledge/**)",
+      "Edit(//c/Users/Administrator/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/**)",
+      "Write(//c/Users/Administrator/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/**)"
     ]
   },
   "hooks": {
@@ -16,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NonInteractive -File \"c:/vscode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/retrieve.ps1\"",
+            "command": "pwsh -NonInteractive -File \"D:/VSCode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/retrieve.ps1\"",
             "timeout": 8,
             "statusMessage": "Retrieving from knowledge vault..."
           }
@@ -29,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NonInteractive -File \"c:/vscode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/impact-check.ps1\"",
+            "command": "pwsh -NonInteractive -File \"D:/VSCode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/impact-check.ps1\"",
             "timeout": 5
           }
         ]
@@ -41,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NonInteractive -File \"c:/vscode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/reindex.ps1\"",
+            "command": "pwsh -NonInteractive -File \"D:/VSCode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/reindex.ps1\"",
             "timeout": 5
           }
         ]
@@ -52,12 +53,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NonInteractive -File \"c:/vscode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/consolidate.ps1\"",
+            "command": "pwsh -NonInteractive -File \"D:/VSCode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/consolidate.ps1\"",
             "timeout": 8
           },
           {
             "type": "command",
-            "command": "pwsh -NonInteractive -File \"c:/vscode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/preference-extract.ps1\"",
+            "command": "pwsh -NonInteractive -File \"D:/VSCode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/preference-extract.ps1\"",
             "timeout": 5
           }
         ]
@@ -68,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NonInteractive -File \"c:/vscode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/health-check.ps1\"",
+            "command": "pwsh -NonInteractive -File \"D:/VSCode/rjain557-knowledge/rjain557-knowledge/.claude/hooks/health-check.ps1\"",
             "timeout": 10
           }
         ]

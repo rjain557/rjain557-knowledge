@@ -23,7 +23,7 @@ This repo has a 4-layer knowledge stack. Read the layer descriptions; respect th
 
 ### Layer 1 — Obsidian vault (durable human knowledge)
 
-- **Location:** `C:/Users/rjain/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/`
+- **Location:** `C:/Users/Administrator/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/`
 - Index: `claude-memory/index.md`
 - Health dashboard: `claude-memory/HEALTH.md`
 - Topic pages: `claude-memory/topics/`
@@ -34,14 +34,14 @@ This repo has a 4-layer knowledge stack. Read the layer descriptions; respect th
 
 ### Layer 2 — Auto-memory (Claude's working notes)
 
-- **Location:** `C:/Users/rjain/.claude/projects/c--vscode-rjain557-knowledge-rjain557-knowledge/memory/`
+- **Location:** `C:/Users/Administrator/.claude/projects/d--VSCode-rjain557-knowledge-rjain557-knowledge/memory/`
 - Index `MEMORY.md` is auto-loaded by `~/.claude/hooks/memory-prefetch.js` on every UserPromptSubmit.
 - Use for: feedback (corrections), user preferences, session-spanning project state, references to external systems.
 - Do **not** put architectural facts here — those belong in the vault.
 
 ### Layer 3 — GitNexus (code structure)
 
-- Installed globally (`gitnexus` CLI in `C:/Users/rjain/AppData/Roaming/npm/`).
+- Installed globally (`gitnexus` CLI in `C:/Users/Administrator/AppData/Roaming/npm/` — once `npm install -g gitnexus` runs on this workstation).
 - Hook configured in user-global settings runs on Edit/Write/Bash.
 - This repo: index will be built once code lands. Re-indexes on commit/merge via post-tool hook.
 - MCP config: `.claude/mcp.json` (when populated).
@@ -126,6 +126,6 @@ Every mutation to `claude-memory/` is committed with a tag prefix:
 
 ## Pointers
 
-- Vault index: [`claude-memory/index.md`](C:/Users/rjain/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/index.md)
-- Health: [`claude-memory/HEALTH.md`](C:/Users/rjain/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/HEALTH.md)
+- Vault index: [`claude-memory/index.md`](C:/Users/Administrator/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/index.md)
+- Health: [`claude-memory/HEALTH.md`](C:/Users/Administrator/OneDrive%20-%20Technijian,%20Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge/claude-memory/HEALTH.md)
 - Workstation setup guide: `workstation.md` at repo root

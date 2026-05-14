@@ -13,7 +13,7 @@ try {
     if ($cwd -and ($cwd -notlike '*rjain557-knowledge*')) { exit 0 }
 
     # Pull the most recent transcript file from the conversation log
-    $sessionLogDir = "C:/Users/rjain/.claude/projects/c--vscode-rjain557-knowledge-rjain557-knowledge/conversation-log"
+    $sessionLogDir = "C:/Users/Administrator/.claude/projects/d--VSCode-rjain557-knowledge-rjain557-knowledge/conversation-log"
     if (-not (Test-Path $sessionLogDir)) { exit 0 }
 
     $today = (Get-Date -Format 'yyyy-MM-dd')

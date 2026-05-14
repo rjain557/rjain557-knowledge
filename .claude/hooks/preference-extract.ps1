@@ -9,7 +9,7 @@ try {
     $cwd = $payload.cwd
     if ($cwd -and ($cwd -notlike '*rjain557-knowledge*')) { exit 0 }
 
-    $sessionLogDir = "C:/Users/rjain/.claude/projects/c--vscode-rjain557-knowledge-rjain557-knowledge/conversation-log"
+    $sessionLogDir = "C:/Users/Administrator/.claude/projects/d--VSCode-rjain557-knowledge-rjain557-knowledge/conversation-log"
     $today = (Get-Date -Format 'yyyy-MM-dd')
     $logFile = Join-Path $sessionLogDir "$today.md"
     if (-not (Test-Path $logFile)) { exit 0 }

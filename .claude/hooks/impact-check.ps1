@@ -7,7 +7,7 @@
 
 try {
     # If GitNexus is not yet indexed for this repo, just no-op.
-    $repoRoot = 'c:/vscode/rjain557-knowledge/rjain557-knowledge'
+    $repoRoot = 'D:/VSCode/rjain557-knowledge/rjain557-knowledge'
     $gn = Join-Path $repoRoot '.gitnexus'
     if (-not (Test-Path $gn)) { exit 0 }
 

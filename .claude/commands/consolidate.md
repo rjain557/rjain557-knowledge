@@ -5,7 +5,7 @@ description: Distill the recent exchange into vault topics — update existing, 
 Walk through this exact sequence:
 
 1. Read `claude-memory/index.md` for the topic taxonomy.
-2. Read the last hour of conversation log at `C:/Users/rjain/.claude/projects/c--vscode-rjain557-knowledge-rjain557-knowledge/conversation-log/<today>.md`.
+2. Read the last hour of conversation log at `C:/Users/Administrator/.claude/projects/d--VSCode-rjain557-knowledge-rjain557-knowledge/conversation-log/<today>.md`.
 3. Decide if the exchange produced **durable human knowledge**. Skip if trivial, code-structural-only (GitNexus would derive it), or purely procedural.
 
 For each candidate piece of durable knowledge:

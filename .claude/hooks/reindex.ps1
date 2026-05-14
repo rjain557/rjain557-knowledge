@@ -11,7 +11,7 @@ try {
     if (-not $command) { exit 0 }
     if ($command -notmatch '\bgit\b\s+(commit|merge|pull|rebase)') { exit 0 }
 
-    $repoRoot = 'c:/vscode/rjain557-knowledge/rjain557-knowledge'
+    $repoRoot = 'D:/VSCode/rjain557-knowledge/rjain557-knowledge'
     $gn = Join-Path $repoRoot '.gitnexus'
 
     # If the repo has been GitNexus-indexed, rely on the global hook to re-index.
