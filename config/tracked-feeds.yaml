@@ -1,0 +1,135 @@
+feeds:
+  # ── arXiv ─────────────────────────────────────────────────────────────
+  - id: arxiv_ai
+    type: arxiv
+    name: "arXiv cs.AI + cs.MA"
+    categories: [cs.AI, cs.MA, cs.LG]
+    keywords:
+      - "autonomous agent"
+      - "multi-agent"
+      - "LLM agent"
+      - "tool use"
+      - "agentic"
+      - "ReAct"
+    max_per_poll: 15
+    poll_interval_hours: 12
+    domains: [agent-orchestration]
+    active: true
+
+  - id: arxiv_ir
+    type: arxiv
+    name: "arXiv cs.IR (information retrieval)"
+    categories: [cs.IR]
+    keywords:
+      - "answer engine"
+      - "generative search"
+      - "RAG"
+      - "dense retrieval"
+    max_per_poll: 10
+    poll_interval_hours: 24
+    domains: [seo-agents]
+    active: true
+
+  # ── Vendor Blogs (RSS) ─────────────────────────────────────────────────
+  - id: anthropic_blog
+    type: rss
+    name: "Anthropic Blog"
+    url: "https://www.anthropic.com/rss.xml"
+    poll_interval_hours: 6
+    domains: [agent-orchestration]
+    active: true
+
+  - id: openai_blog
+    type: rss
+    name: "OpenAI Blog"
+    url: "https://openai.com/blog/rss.xml"
+    poll_interval_hours: 6
+    domains: [agent-orchestration]
+    active: true
+
+  - id: langchain_blog
+    type: rss
+    name: "LangChain Blog"
+    url: "https://blog.langchain.dev/rss/"
+    poll_interval_hours: 12
+    domains: [agent-orchestration]
+    active: true
+
+  - id: simonwillison_blog
+    type: rss
+    name: "Simon Willison's Weblog"
+    url: "https://simonwillison.net/atom/everything/"
+    poll_interval_hours: 6
+    domains: [agent-orchestration]
+    active: true
+
+  - id: search_engine_journal
+    type: rss
+    name: "Search Engine Journal"
+    url: "https://www.searchenginejournal.com/feed/"
+    poll_interval_hours: 6
+    domains: [seo-agents]
+    active: true
+
+  - id: search_engine_land
+    type: rss
+    name: "Search Engine Land"
+    url: "https://searchengineland.com/feed"
+    poll_interval_hours: 6
+    domains: [seo-agents]
+    active: true
+
+  # ── Threat Intel ──────────────────────────────────────────────────────
+  - id: cisa_kev
+    type: rss
+    name: "CISA Known Exploited Vulnerabilities"
+    url: "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+    feed_format: json
+    poll_interval_hours: 6
+    domains: [tech-support-agents]
+    active: true
+
+  - id: msrc_updates
+    type: rss
+    name: "MSRC Security Updates"
+    url: "https://api.msrc.microsoft.com/cvrf/v2.0/updates"
+    feed_format: json
+    poll_interval_hours: 12
+    domains: [tech-support-agents]
+    active: true
+
+  # ── GitHub Trending ────────────────────────────────────────────────────
+  - id: github_trending_agents
+    type: github_trending
+    name: "GitHub Trending — AI Agents"
+    topics: [llm-agent, ai-agents, autonomous-agents, multi-agent]
+    languages: [python, typescript]
+    poll_interval_hours: 24
+    domains: [agent-orchestration]
+    active: true
+
+  - id: github_trending_aeo
+    type: github_trending
+    name: "GitHub Trending — SEO / AEO tools"
+    topics: [seo, aeo, geo, llm-seo]
+    languages: [python, typescript]
+    poll_interval_hours: 24
+    domains: [seo-agents]
+    active: true
+
+  # ── Benchmarks ────────────────────────────────────────────────────────
+  - id: swebench_leaderboard
+    type: benchmark_leaderboard
+    name: "SWE-bench Leaderboard"
+    url: "https://www.swebench.com/"
+    poll_interval_hours: 168
+    domains: [agent-orchestration]
+    active: true
+
+  - id: gaia_leaderboard
+    type: benchmark_leaderboard
+    name: "GAIA Leaderboard"
+    url: "https://huggingface.co/spaces/gaia-benchmark/leaderboard"
+    poll_interval_hours: 168
+    domains: [agent-orchestration]
+    active: true

@@ -1,0 +1,76 @@
+mail:
+  folder: Brain
+  on_processed: label
+  label_name: Processed
+  poll_interval_seconds: 300
+  max_per_poll: 20
+
+extraction:
+  tiktok_enabled: false
+  whisper_model: base
+  max_video_duration_seconds: 7200
+  arxiv_extract_full_pdf: true
+  arxiv_reproducibility_score: true
+
+gsd:
+  verifier_retry: 1
+  on_verifier_fail: review_folder
+  duplicate_threshold: 0.92
+
+synthesizer:
+  new_sources_threshold: 10
+  scheduled_cadence_days: 7
+  min_sources_for_pattern: 3
+
+vault:
+  inbox_retention_days: 30
+  stub_creation: true
+
+database:
+  connection_pool_size: 5
+  command_timeout_seconds: 60
+  use_vector_index_preview: true
+
+reviewer:
+  cadence_days: 7
+  autonomous_threshold_adjust_max: 0.1
+  autonomous_arxiv_max_per_poll_bounds: [5, 40]
+  noise_rate_warn: 0.6
+  noise_rate_propose_drop: 0.85
+  stale_pattern_threshold_days: 90
+  pattern_decay_rate: 0.97
+  pattern_archive_confidence: 0.2
+  cost_alert_threshold_pct: 1.25
+  manual_only_categories:
+    - schema
+    - domain_profile
+    - vault_structure
+
+deep_research:
+  enabled: false
+  primary_search: tavily
+  semantic_search: exa
+  academic_sources: [semantic_scholar, openalex]
+  code_search: [github]
+  realtime_sources: [hn_algolia]
+  orchestrator: storm
+  outline_questions: 8
+  cost_cap_usd: 2.0
+  max_runs_per_day_auto: 3
+  auto_expand_threshold: 0.9
+  dedup_similarity_threshold: 0.9
+  llm_model_outline: claude-haiku-4-5-20251001
+  llm_model_synthesis: claude-sonnet-4-6
+  whisper_provider: groq
+  pdf_extractor: marker
+  scraper_overflow: searxng
+
+extractors_v41:
+  article_fallback: playwright
+  twitter_backend: twscrape
+  reddit_backend: praw
+  pdf_primary: marker
+  pdf_academic: docling
+  pdf_structured: grobid
+  podcast_transcription: faster_whisper
+  whisper_compute_type: int8

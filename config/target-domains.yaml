@@ -1,0 +1,105 @@
+domains:
+  agent-orchestration:
+    display_name: "Agent Orchestration"
+    description: >
+      Autonomous agents, harnesses, multi-agent orchestration patterns,
+      agent memory, tool use, reflection loops, agent benchmarks.
+    interests:
+      - multi-agent systems
+      - agent orchestration frameworks
+      - LLM tool use
+      - agent memory architectures
+      - autonomous planning
+      - agent benchmarks (SWE-bench, GAIA, OSWorld, AgentBench, WebArena)
+      - agent safety and alignment
+      - Claude Code / Cursor / Aider patterns
+      - MCP (Model Context Protocol)
+      - harness design
+    anti_patterns:
+      - pure NLP without agentic application
+      - generic LLM fine-tuning without agent relevance
+      - marketing content without technical depth
+    watched_authors:
+      - "Anthropic"
+      - "Simon Willison"
+      - "Hamel Husain"
+      - "Eugene Yan"
+      - "Andrew Ng"
+    relevance_threshold: 0.35
+    arxiv_categories:
+      - cs.AI
+      - cs.MA
+      - cs.LG
+    arxiv_keywords:
+      - "autonomous agent"
+      - "multi-agent"
+      - "LLM agent"
+      - "tool use"
+      - "agent benchmark"
+      - "agentic"
+      - "ReAct"
+      - "chain-of-thought"
+
+  seo-agents:
+    display_name: "SEO Agents"
+    description: >
+      AI agents that perform SEO work, especially AEO/GEO (Answer Engine
+      Optimization / Generative Engine Optimization), LLM citation patterns,
+      SERP format research, AI-powered SEO tooling.
+    interests:
+      - AEO (Answer Engine Optimization)
+      - GEO (Generative Engine Optimization)
+      - LLM citation and source selection patterns
+      - AI overviews and SGE
+      - AI-powered SEO tools (Surfer, Clearscope, Frase, Ahrefs AI, Semrush AI)
+      - SERP format changes driven by AI
+      - structured data and schema markup for AI
+      - content freshness signals
+      - entity optimization
+    anti_patterns:
+      - purely technical SEO without AI angle
+      - link building tactics without AI relevance
+      - social media marketing unrelated to search
+    watched_authors: []
+    relevance_threshold: 0.35
+    arxiv_categories:
+      - cs.IR
+    arxiv_keywords:
+      - "search engine optimization"
+      - "answer engine"
+      - "generative search"
+      - "RAG retrieval"
+      - "information retrieval LLM"
+
+  tech-support-agents:
+    display_name: "Tech Support Agents"
+    description: >
+      AI agents that diagnose and resolve IT support issues. Diagnostic
+      patterns are the primary artifact. Focus on AI-for-ITops tooling,
+      M365/Copilot for IT, AIOps, threat intel.
+    interests:
+      - AI-powered IT helpdesk and triage
+      - Copilot for Security
+      - M365 Copilot for IT support
+      - AIOps (AI for IT operations)
+      - diagnostic pattern libraries
+      - CISA KEV (Known Exploited Vulnerabilities)
+      - MSRC security updates
+      - automated incident response
+      - root cause analysis with LLMs
+      - IT automation with AI
+    anti_patterns:
+      - generic cybersecurity without AI angle
+      - consumer tech support
+      - hardware-only issues
+    watched_authors: []
+    relevance_threshold: 0.35
+    arxiv_categories:
+      - cs.NI
+      - cs.CR
+    arxiv_keywords:
+      - "AIOps"
+      - "IT operations"
+      - "automated diagnosis"
+      - "incident response AI"
+      - "threat intelligence LLM"
