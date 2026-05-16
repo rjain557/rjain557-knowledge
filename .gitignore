@@ -86,3 +86,6 @@ extraction_cache/
 # Vector index dumps (regeneratable)
 *.vec
 *.diskann
+
+# --- Deep Research run logs ---
+deep_research_run.log
