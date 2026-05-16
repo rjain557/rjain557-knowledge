@@ -12,6 +12,7 @@ import structlog
 from cortex.config import get_settings
 from cortex.db import repositories as repo
 from cortex.extractors.base import ExtractedContent
+from cortex.utils.timezone import now_pacific, to_pacific
 
 log = structlog.get_logger(__name__)
 
@@ -28,8 +29,9 @@ def write_inbox_note(
     vault = settings.vault_path
 
     slug = _slugify(content.title)
-    dt = (content.published_at or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
-    filename = f"{dt}-{slug}.md"
+    # Filename date is the source's published date if known, else today in PT
+    base = to_pacific(content.published_at) if content.published_at else now_pacific()
+    filename = f"{base.strftime('%Y-%m-%d')}-{slug}.md"
     inbox_dir = vault / VAULT_INBOX
     inbox_dir.mkdir(parents=True, exist_ok=True)
     file_path = inbox_dir / filename
@@ -43,7 +45,8 @@ def write_inbox_note(
         "source_url": content.source_url,
         "title": content.title,
         "author": content.author,
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        # Captured time in America/Los_Angeles with -07:00/-08:00 offset
+        "captured_at": now_pacific().isoformat(),
         "domain": primary_domain,
         "relevance": domain_scores,
         "tags": [],

@@ -295,6 +295,7 @@ def _write_topic_article(
     topics_dir.mkdir(parents=True, exist_ok=True)
     file_path = topics_dir / f"{slug}.md"
 
+    from cortex.utils.timezone import now_pacific
     fm = {
         "type": "topic",
         "domain": primary_domain,
@@ -304,7 +305,8 @@ def _write_topic_article(
         "sources_cited": len(citations),
         "search_engines_used": ["claude_web_search"],
         "cost_usd": round(float(cost_usd), 4),
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        # Pacific time with -07:00/-08:00 offset (DST-aware)
+        "captured_at": now_pacific().isoformat(),
         "title": topic,
         "tags": ["deep-research"],
     }

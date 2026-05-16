@@ -86,9 +86,9 @@ def health():
 @app.post("/poll", response_model=PollResult, dependencies=[Depends(_check_secret)])
 def trigger_poll():
     """Run one poll cycle via scripts/poll.py --once and return the outcome."""
-    from datetime import datetime, timezone
+    from cortex.utils.timezone import now_pacific, fmt_pacific
 
-    started_at = datetime.now(timezone.utc)
+    started_at = now_pacific()
     t0 = time.monotonic()
     log.info("webhook.poll.start")
 
@@ -103,7 +103,7 @@ def trigger_poll():
         cmd, capture_output=True, text=True, env=env,
         cwd=str(REPO_ROOT), timeout=3000, encoding="utf-8", errors="replace",
     )
-    finished_at = datetime.now(timezone.utc)
+    finished_at = now_pacific()
     duration = time.monotonic() - t0
 
     # Parse "notes_written=N" out of the structured log
@@ -123,13 +123,13 @@ def trigger_poll():
         try:
             from cortex.mail.notify import send_alert
             send_alert(
-                subject=f"[Cortex] Poll FAILED ({proc.returncode}) at {finished_at:%Y-%m-%d %H:%M UTC}",
+                subject=f"[Cortex] Poll FAILED ({proc.returncode}) at {fmt_pacific(finished_at, '%Y-%m-%d %H:%M %Z')}",
                 body_markdown=(
                     f"Poll cycle failed.\n\n"
                     f"Exit code: {proc.returncode}\n"
                     f"Duration:  {duration:.1f} s\n"
-                    f"Started:   {started_at:%Y-%m-%d %H:%M:%S UTC}\n"
-                    f"Finished:  {finished_at:%Y-%m-%d %H:%M:%S UTC}\n\n"
+                    f"Started:   {fmt_pacific(started_at)}\n"
+                    f"Finished:  {fmt_pacific(finished_at)}\n\n"
                     f"--- log tail ---\n{log_tail}\n"
                 ),
             )
