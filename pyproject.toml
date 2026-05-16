@@ -48,6 +48,10 @@ dependencies = [
 
     # ── MCP server ────────────────────────────────────────────────────────
     "fastmcp>=0.4",
+
+    # ── Webhook server (n8n trigger endpoint) ─────────────────────────────
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
 ]
 
 [project.optional-dependencies]

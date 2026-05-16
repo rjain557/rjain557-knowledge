@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     exa_api_key: str = ""
     groq_api_key: str = ""
 
+    # ── Webhook server ────────────────────────────────────────────────────
+    webhook_secret: str = ""
+    webhook_port: int = 8765
+
     @property
     def vault_path(self) -> Path:
         return Path(self.vault_root)
