@@ -50,16 +50,21 @@ def ingest_url(url: str) -> None:
     log.info("ingest.scores", scores=scores)
 
     # 4. Save source to DB
+    link_id = repo.record_link(
+        original_url=url, source_type=content.source_type, email_id=None
+    )
     source_id = repo.upsert_source(
-        url=url,
+        source_url=url,
         source_type=content.source_type,
         title=content.title,
         author=content.author,
         published_at=content.published_at,
         body_markdown=content.body_markdown,
         metadata=content.metadata,
+        link_id=link_id,
+        canonical_url=content.canonical_url,
+        extractor=content.metadata.get("extractor"),
     )
-    repo.record_link(email_id=None, url=url, link_type=content.source_type)
     repo.record_relevance_scores(source_id, scores)
 
     # 5. Write vault note

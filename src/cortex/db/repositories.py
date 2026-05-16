@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime
 
 import structlog
 
@@ -28,18 +28,20 @@ def record_email(
     sender: str,
     subject: str,
     received_at: datetime,
-    link_count: int,
+    body_preview: str = "",
+    folder: str = "Brain",
 ) -> int:
     with transaction() as conn:
-        conn.execute(
+        row = conn.execute(
             """
             INSERT INTO dbo.processed_emails
-                   (message_id, sender, subject, received_at, link_count)
-            VALUES (?, ?, ?, ?, ?)
+                   (message_id, sender, subject, received_at,
+                    body_preview, folder, captured_at, processed_at, status)
+            OUTPUT INSERTED.email_id AS id
+            VALUES (?, ?, ?, ?, ?, ?, SYSUTCDATETIME(), SYSUTCDATETIME(), 'processed')
             """,
-            message_id, sender, subject, received_at, link_count,
-        )
-        row = conn.execute("SELECT SCOPE_IDENTITY() AS id").fetchone()
+            message_id, sender, subject, received_at, body_preview[:1000], folder,
+        ).fetchone()
         return int(row.id)
 
 
@@ -47,48 +49,56 @@ def record_email(
 
 def is_link_processed(url: str) -> bool:
     conn = get_connection()
-    import hashlib
-    url_hash = hashlib.sha256(url.encode()).digest()
+    url_hash = _hash(url)
     row = conn.execute(
-        "SELECT 1 FROM dbo.processed_links WHERE url_hash = ?", pyodbc_binary(url_hash)
+        "SELECT 1 FROM dbo.processed_links WHERE url_hash = ?", url_hash
     ).fetchone()
     return row is not None
 
 
-def record_link(email_id: int | None, url: str, link_type: str) -> int:
-    import hashlib
-    url_hash = hashlib.sha256(url.encode()).digest()
+def record_link(
+    original_url: str,
+    source_type: str,
+    email_id: int | None = None,
+    canonical_url: str | None = None,
+) -> int:
+    canonical = canonical_url or original_url
+    url_hash = _hash(canonical)
     with transaction() as conn:
-        conn.execute(
+        row = conn.execute(
             """
-            INSERT INTO dbo.processed_links (email_id, url, url_hash, link_type)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO dbo.processed_links
+                   (email_id, original_url, canonical_url, url_hash,
+                    source_type, classified_at, status)
+            OUTPUT INSERTED.link_id AS id
+            VALUES (?, ?, ?, ?, ?, SYSUTCDATETIME(), 'classified')
             """,
-            email_id, url, pyodbc_binary(url_hash), link_type,
-        )
-        row = conn.execute("SELECT SCOPE_IDENTITY() AS id").fetchone()
+            email_id, original_url, canonical, url_hash, source_type,
+        ).fetchone()
         return int(row.id)
 
 
 # ── Sources ───────────────────────────────────────────────────────────────────
 
 def upsert_source(
-    url: str,
+    source_url: str,
     source_type: str,
     title: str | None,
     author: str | None,
     published_at: datetime | None,
     body_markdown: str,
     metadata: dict | None = None,
-    feed_id: str | None = None,
+    feed_id: int | None = None,
+    link_id: int | None = None,
+    canonical_url: str | None = None,
+    extractor: str | None = None,
 ) -> int:
-    import hashlib
-    url_hash = hashlib.sha256(url.encode()).digest()
+    canonical = canonical_url or source_url
+    url_hash = _hash(canonical)
 
     with transaction() as conn:
         existing = conn.execute(
-            "SELECT source_id FROM dbo.sources WHERE url_hash = ?",
-            pyodbc_binary(url_hash),
+            "SELECT source_id FROM dbo.sources WHERE url_hash = ?", url_hash
         ).fetchone()
 
         if existing:
@@ -97,28 +107,31 @@ def upsert_source(
                 """
                 UPDATE dbo.sources
                 SET title = ?, author = ?, published_at = ?,
-                    metadata = ?, updated_at = SYSUTCDATETIME()
+                    body_markdown = ?, metadata = ?, extractor = ?,
+                    extraction_status = 'success'
                 WHERE source_id = ?
                 """,
-                title, author, published_at,
-                json.dumps(metadata or {}), source_id,
+                title, author, published_at, body_markdown,
+                json.dumps(metadata or {}), extractor, source_id,
             )
         else:
-            conn.execute(
+            row = conn.execute(
                 """
                 INSERT INTO dbo.sources
-                       (url, url_hash, source_type, feed_id, title, author,
-                        published_at, body_markdown, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       (link_id, feed_id, source_url, canonical_url, url_hash,
+                        source_type, title, author, published_at, captured_at,
+                        body_markdown, metadata, extractor, extraction_status)
+                OUTPUT INSERTED.source_id AS id
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, SYSUTCDATETIME(),
+                        ?, ?, ?, 'success')
                 """,
-                url, pyodbc_binary(url_hash), source_type, feed_id,
-                title, author, published_at, body_markdown,
-                json.dumps(metadata or {}),
-            )
-            row = conn.execute("SELECT SCOPE_IDENTITY() AS id").fetchone()
+                link_id, feed_id, source_url, canonical, url_hash,
+                source_type, title, author, published_at,
+                body_markdown, json.dumps(metadata or {}), extractor,
+            ).fetchone()
             source_id = int(row.id)
 
-    log.debug("db.source.upserted", source_id=source_id, url=url, source_type=source_type)
+    log.debug("db.source.upserted", source_id=source_id, url=source_url, source_type=source_type)
     return source_id
 
 
@@ -139,7 +152,7 @@ def upsert_note(
         "EXEC dbo.usp_upsert_note ?, ?, ?, ?, ?, ?, ?, ?",
         vault_path, source_id, title, note_type, domain,
         body_markdown,
-        json.dumps(frontmatter or {}),
+        json.dumps(frontmatter or {}, default=str),
         json.dumps(tags or []),
     ).fetchone()
     conn.commit()
@@ -150,7 +163,11 @@ def upsert_note(
 
 # ── Relevance scores ──────────────────────────────────────────────────────────
 
-def record_relevance_scores(source_id: int, scores: dict[str, float]) -> None:
+def record_relevance_scores(
+    source_id: int,
+    scores: dict[str, float],
+    model: str = "claude-haiku-4-5-20251001",
+) -> None:
     with transaction() as conn:
         for domain, score in scores.items():
             conn.execute(
@@ -159,16 +176,17 @@ def record_relevance_scores(source_id: int, scores: dict[str, float]) -> None:
                 USING (SELECT ? AS source_id, ? AS domain) AS src
                    ON tgt.source_id = src.source_id AND tgt.domain = src.domain
                 WHEN MATCHED THEN
-                    UPDATE SET score = ?, scored_at = SYSUTCDATETIME()
+                    UPDATE SET score = ?, scored_at = SYSUTCDATETIME(), model = ?
                 WHEN NOT MATCHED THEN
-                    INSERT (source_id, domain, score) VALUES (?, ?, ?);
+                    INSERT (source_id, domain, score, scored_at, model)
+                    VALUES (?, ?, ?, SYSUTCDATETIME(), ?);
                 """,
-                source_id, domain, score, source_id, domain, score,
+                source_id, domain, score, model,
+                source_id, domain, score, model,
             )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def pyodbc_binary(data: bytes):
-    """Wrap bytes so pyodbc sends them as BINARY/VARBINARY."""
-    return bytes(data)
+def _hash(url: str) -> bytes:
+    return hashlib.sha256(url.encode()).digest()

@@ -40,6 +40,15 @@ def process_message(watcher: MailWatcher, msg: dict, on_processed: str, label_na
     links = extract_links(msg["body_html"])
     log.info("poll.email.links", subject=msg["subject"], count=len(links))
 
+    # Record the email up front so links can FK to it
+    email_id = repo.record_email(
+        message_id=message_id,
+        sender=msg["sender"],
+        subject=msg["subject"],
+        received_at=msg["received_at"],
+        body_preview=(msg.get("body_html") or "")[:1000],
+    )
+
     notes_written = 0
     for link in links:
         if repo.is_link_processed(link.url):
@@ -51,22 +60,28 @@ def process_message(watcher: MailWatcher, msg: dict, on_processed: str, label_na
             content = extract_article(link.url)
 
         if not content:
-            # Record the link as seen even if extraction failed
-            repo.record_link(email_id=None, url=link.url, link_type=link.link_type)
+            repo.record_link(
+                original_url=link.url, source_type=link.link_type, email_id=email_id
+            )
             log.warning("poll.link.extract_failed", url=link.url, type=link.link_type)
             continue
 
+        link_id = repo.record_link(
+            original_url=link.url, source_type=content.source_type, email_id=email_id
+        )
         scores = score_relevance(content.title, content.body_markdown)
         source_id = repo.upsert_source(
-            url=link.url,
+            source_url=link.url,
             source_type=content.source_type,
             title=content.title,
             author=content.author,
             published_at=content.published_at,
             body_markdown=content.body_markdown,
             metadata=content.metadata,
+            link_id=link_id,
+            canonical_url=content.canonical_url,
+            extractor=content.metadata.get("extractor"),
         )
-        repo.record_link(email_id=None, url=link.url, link_type=content.source_type)
         repo.record_relevance_scores(source_id, scores)
         vault_path, note_id = write_inbox_note(content, source_id, scores)
         notes_written += 1
@@ -76,15 +91,6 @@ def process_message(watcher: MailWatcher, msg: dict, on_processed: str, label_na
             note_id=note_id,
             relevant=is_relevant(scores),
         )
-
-    # Record the email itself
-    repo.record_email(
-        message_id=message_id,
-        sender=msg["sender"],
-        subject=msg["subject"],
-        received_at=msg["received_at"],
-        link_count=len(links),
-    )
 
     # Mark processed in mailbox
     if on_processed == "label":
