@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     m365_tenant_id: str = ""
     m365_client_id: str = ""
     m365_cert_thumbprint: str = "6119074C16A1EC9619159106CB6390CAD77A8399"
+    m365_cert_pfx_path: str = ""
+    m365_cert_pfx_password: str = ""
     m365_mailbox: str = "Knowledge@technijian.com"
     m365_folder: str = "Brain"
 

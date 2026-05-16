@@ -33,10 +33,17 @@ class MailWatcher:
 
         settings = self._settings
         authority = f"https://login.microsoftonline.com/{settings.m365_tenant_id}"
+        private_key_pem, public_cert_pem = _load_pfx(
+            settings.m365_cert_pfx_path, settings.m365_cert_pfx_password
+        )
         app = msal.ConfidentialClientApplication(
             client_id=settings.m365_client_id,
             authority=authority,
-            client_credential={"thumbprint": settings.m365_cert_thumbprint, "private_key": _load_cert_private_key(settings.m365_cert_thumbprint)},
+            client_credential={
+                "thumbprint": settings.m365_cert_thumbprint,
+                "private_key": private_key_pem,
+                "public_certificate": public_cert_pem,
+            },
         )
         result = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
         if "access_token" not in result:
@@ -130,22 +137,23 @@ def _parse_dt(value: str | None) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def _load_cert_private_key(thumbprint: str) -> str:
-    """Extract private key PEM from the Windows certificate store by thumbprint."""
-    import subprocess
-    script = f"""
-$cert = Get-Item "Cert:\\CurrentUser\\My\\{thumbprint}" -ErrorAction Stop
-$bytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pkcs12)
-[Convert]::ToBase64String($bytes)
-"""
-    result = subprocess.run(
-        ["pwsh", "-NonInteractive", "-Command", script],
-        capture_output=True, text=True, timeout=15,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to export cert {thumbprint}: {result.stderr}")
+def _load_pfx(pfx_path: str, password: str) -> tuple[str, str]:
+    """Load a PFX file and return (private_key_pem, public_cert_pem)."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.serialization import pkcs12
 
-    # msal accepts the PFX bytes via the private_key dict key when using thumbprint
-    # For cert-based auth we pass thumbprint + private_key (PEM or PFX path)
-    # Return the cert store path so MSAL can locate it directly on Windows
-    return f"CurrentUser\\My\\{thumbprint}"
+    with open(pfx_path, "rb") as f:
+        pfx_bytes = f.read()
+
+    private_key, certificate, _additional = pkcs12.load_key_and_certificates(
+        pfx_bytes, password.encode() if password else None
+    )
+
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+
+    public_pem = certificate.public_bytes(serialization.Encoding.PEM).decode()
+    return private_pem, public_pem
