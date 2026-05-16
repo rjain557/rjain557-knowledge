@@ -34,10 +34,12 @@ This repo has a 4-layer knowledge stack. Read the layer descriptions; respect th
 
 ### Layer 2 — Auto-memory (Claude's working notes)
 
-- **Location:** `C:/Users/Administrator/.claude/projects/d--VSCode-rjain557-knowledge-rjain557-knowledge/memory/`
+- **Canonical storage:** `claude-memory/auto-memory/` **inside the Obsidian vault** (OneDrive-synced; **shared with other Claude Code repos** on this account that junction to the same vault path).
+- **Harness-visible path:** `C:/Users/Administrator/.claude/projects/d--VSCode-rjain557-knowledge-rjain557-knowledge/memory/` — this is a **directory junction** to the vault location above, so `memory-prefetch.js` reads the same files.
 - Index `MEMORY.md` is auto-loaded by `~/.claude/hooks/memory-prefetch.js` on every UserPromptSubmit.
 - Use for: feedback (corrections), user preferences, session-spanning project state, references to external systems.
-- Do **not** put architectural facts here — those belong in the vault.
+- Do **not** put architectural facts here — those belong in the vault topic pages (`claude-memory/topics/`).
+- See `claude-memory/topics/vault_locations.md` for the junction setup details.
 
 ### Layer 3 — GitNexus (code structure)
 
