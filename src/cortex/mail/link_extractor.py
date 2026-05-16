@@ -11,13 +11,35 @@ import structlog
 
 log = structlog.get_logger(__name__)
 
-# URLs containing these patterns are ignored
+# URLs containing these patterns are ignored.
+# Includes generic tracker/unsubscribe junk PLUS user-brand and security-tool
+# signatures that pollute the source set (e.g. INKY "Report This Email"
+# banners, the user's own social profiles, calendar booking links).
 _SKIP_PATTERNS = re.compile(
+    # Generic email plumbing
     r"unsubscribe|optout|opt-out|mailto:|tel:|"
     r"click\.email|track\.|tracking\.|open\.email|"
     r"list-manage|mailchimp|sendgrid|mandrillapp|"
     r"linkedin\.com/uas/|twitter\.com/i/|"
-    r"pixel\.|beacon\.|img\.",
+    r"pixel\.|beacon\.|img\.|"
+    # Security-tool banners (INKY phishing-report etc.)
+    r"inkyphishfence\.com|"
+    r"proofpoint\.com/v\d+/url|urldefense\.|"
+    r"safelinks\.protection\.outlook\.com|"
+    # Calendar / booking pages — not knowledge content
+    r"outlook\.office\.com/bookwithme|"
+    r"outlook\.office365\.com/owa/calendar/[^/]+/bookings|"
+    r"calendly\.com/|"
+    # User's own brand (their domain + social profiles — sig footer)
+    r"(^|\W)technijian\.com|"
+    r"linkedin\.com/company/technijian|"
+    r"youtube\.com/@TechnijianIT|"
+    r"instagram\.com/technijianinc|"
+    r"facebook\.com/Technijian01|"
+    r"twitter\.com/technijian_|"
+    r"x\.com/technijian_|"
+    r"pinterest\.com/technijian01|"
+    r"tiktok\.com/@technijian(?!\w)",   # @technijian profile, not videos
     re.IGNORECASE,
 )
 
