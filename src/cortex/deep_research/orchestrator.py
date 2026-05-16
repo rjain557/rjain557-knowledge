@@ -52,7 +52,7 @@ class ResearchResult:
 
 def run_deep_research(
     *,
-    source_id: int,
+    source_id: int | None,
     topic: str,
     body_excerpt: str,
     primary_domain: str,
@@ -314,9 +314,11 @@ def _write_topic_article(
     # Mirror to dbo.notes via the same path the regular writer uses
     relative_path = str(file_path.relative_to(vault)).replace("\\", "/")
     conn = get_connection()
+    # usp_upsert_note's @source_id is NULL when this is a topic-only run
     conn.execute(
         "EXEC dbo.usp_upsert_note ?, ?, ?, ?, ?, ?, ?, ?",
-        relative_path, triggered_source_id, topic, "topic", primary_domain,
+        relative_path, triggered_source_id if triggered_source_id else None,
+        topic, "topic", primary_domain,
         article_markdown, json.dumps(fm, default=str), json.dumps(["deep-research"]),
     ).fetchone()
     conn.commit()

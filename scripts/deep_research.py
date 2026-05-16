@@ -76,6 +76,10 @@ def _candidates(min_score: float, max_runs: int, skip_existing: bool = True) -> 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cortex Deep Research runner")
     parser.add_argument("--source-id", type=int, help="Run on a single source_id")
+    parser.add_argument("--topic", type=str,
+                        help="Run a topic-only deep research (no source row required)")
+    parser.add_argument("--domain", default="agent-orchestration",
+                        help="Primary domain for --topic runs")
     parser.add_argument("--min-score", type=float, default=0.5,
                         help="Minimum relevance score (any domain) — default 0.5")
     parser.add_argument("--max-runs", type=int, default=25,
@@ -86,7 +90,13 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    if args.source_id:
+    if args.topic:
+        candidates = [dict(
+            source_id=None, title=args.topic,
+            body=f"Topic-only deep research request: {args.topic}",
+            domain=args.domain, score=1.0,
+        )]
+    elif args.source_id:
         conn = get_connection()
         row = conn.execute(
             """
