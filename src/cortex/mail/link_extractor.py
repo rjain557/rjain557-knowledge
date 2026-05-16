@@ -21,16 +21,26 @@ _SKIP_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-_ARXIV    = re.compile(r"arxiv\.org/abs/|arxiv\.org/pdf/")
-_YOUTUBE  = re.compile(r"youtube\.com/watch|youtu\.be/")
-_GITHUB   = re.compile(r"github\.com/[^/]+/[^/]+")
-_PDF      = re.compile(r"\.pdf(\?|$)", re.IGNORECASE)
+# Ordered classification patterns: first match wins
+_CLASSIFIERS: list[tuple[str, re.Pattern]] = [
+    ("arxiv",      re.compile(r"arxiv\.org/abs/|arxiv\.org/pdf/")),
+    ("youtube",    re.compile(r"youtube\.com/watch|youtu\.be/|youtube\.com/shorts/")),
+    ("tiktok",     re.compile(r"tiktok\.com/")),
+    ("reddit",     re.compile(r"reddit\.com/r/|reddit\.com/comments/|redd\.it/")),
+    ("hackernews", re.compile(r"news\.ycombinator\.com/")),
+    ("github",     re.compile(r"github\.com/[^/]+/[^/]+")),
+    ("twitter",    re.compile(r"twitter\.com/[^/]+/status/|x\.com/[^/]+/status/")),
+    ("instagram",  re.compile(r"instagram\.com/(p|reel)/")),
+    ("facebook",   re.compile(r"facebook\.com/")),
+    ("pdf",        re.compile(r"\.pdf(\?|$)", re.IGNORECASE)),
+]
 
 
 @dataclass
 class ExtractedLink:
     url: str
-    link_type: str  # article | arxiv | youtube | github | pdf | other
+    link_type: str  # arxiv | youtube | tiktok | reddit | hackernews | github |
+                    # twitter | instagram | facebook | pdf | article
 
 
 def extract_links(html: str, plain_text: str = "") -> list[ExtractedLink]:
@@ -72,7 +82,6 @@ def _extract_urls_from_text(text: str) -> list[str]:
 
 def _normalise(url: str) -> str:
     url = url.strip().rstrip(".,;)")
-    # Remove common tracking query params
     url = re.sub(r"[?&](utm_[^&]+|mc_cid=[^&]+|mc_eid=[^&]+)", "", url)
     return url
 
@@ -83,12 +92,7 @@ def _is_http(url: str) -> bool:
 
 
 def _classify(url: str) -> str:
-    if _ARXIV.search(url):
-        return "arxiv"
-    if _YOUTUBE.search(url):
-        return "youtube"
-    if _GITHUB.search(url):
-        return "github"
-    if _PDF.search(url):
-        return "pdf"
+    for name, pattern in _CLASSIFIERS:
+        if pattern.search(url):
+            return name
     return "article"

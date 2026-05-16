@@ -26,6 +26,15 @@ dependencies = [
     "lxml>=5.2",
     "playwright>=1.44",
 
+    # ── Extractors (Phase 2) ──────────────────────────────────────────────
+    "yt-dlp>=2024.5",
+    "youtube-transcript-api>=0.6",
+    "faster-whisper>=1.0",
+    "pdfplumber>=0.11",
+    "feedparser>=6.0",
+    "PyGithub>=2.3",
+    "arxiv>=2.1",
+
     # ── Vault ─────────────────────────────────────────────────────────────
     "python-frontmatter>=1.1",
     "slugify>=0.0.1",

@@ -89,3 +89,4 @@ extraction_cache/
 
 # --- Deep Research run logs ---
 deep_research_run.log
+reextract_run.log

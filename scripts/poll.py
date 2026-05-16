@@ -26,7 +26,7 @@ structlog.configure(processors=[structlog.dev.ConsoleRenderer()])
 from cortex.config import get_settings, get_yaml_config
 from cortex.mail.watcher import MailWatcher
 from cortex.mail.link_extractor import extract_links
-from cortex.extractors.article import extract as extract_article
+from cortex.extractors import extract_for_type
 from cortex.relevance.scorer import score as score_relevance, is_relevant
 from cortex.db import repositories as repo
 from cortex.vault.writer import write_inbox_note
@@ -73,9 +73,7 @@ def process_message(
             log.debug("poll.link.skip_duplicate", url=link.url)
             continue
 
-        content = None
-        if link.link_type == "article":
-            content = extract_article(link.url)
+        content = extract_for_type(link.url, link.link_type)
 
         if not content:
             repo.record_link(
