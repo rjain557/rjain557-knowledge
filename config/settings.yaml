@@ -3,7 +3,7 @@ mail:
   on_processed: move           # move | label | none
   processed_folder: Processed  # subfolder of `folder` to move messages into
   label_name: Processed        # only used when on_processed == 'label'
-  poll_interval_seconds: 300
+  poll_interval_seconds: 3600       # 1 hour between cycles
   max_per_poll: 20
 
 extraction:
