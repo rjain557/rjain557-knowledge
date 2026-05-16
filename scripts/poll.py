@@ -12,6 +12,11 @@ import sys
 import time
 from pathlib import Path
 
+# Force UTF-8 on stdout (Windows defaults to CP1252 which dies on emoji)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import argparse
@@ -29,7 +34,13 @@ from cortex.vault.writer import write_inbox_note
 log = structlog.get_logger(__name__)
 
 
-def process_message(watcher: MailWatcher, msg: dict, on_processed: str, label_name: str) -> int:
+def process_message(
+    watcher: MailWatcher,
+    msg: dict,
+    on_processed: str,
+    label_name: str,
+    processed_folder_id: str | None,
+) -> int:
     """Process one email message. Returns count of notes written."""
     message_id = msg["message_id"]
 
@@ -93,14 +104,17 @@ def process_message(watcher: MailWatcher, msg: dict, on_processed: str, label_na
         )
 
     # Mark processed in mailbox
+    watcher.mark_read(message_id)
     if on_processed == "label":
         watcher.apply_label(message_id, label_name)
-    watcher.mark_read(message_id)
+    elif on_processed == "move" and processed_folder_id:
+        watcher.move_message(message_id, processed_folder_id)
+        log.info("poll.email.moved_to_processed", subject=msg["subject"][:80])
 
     return notes_written
 
 
-def run_poll(watcher: MailWatcher, cfg: dict) -> int:
+def run_poll(watcher: MailWatcher, cfg: dict, processed_folder_id: str | None) -> int:
     mail_cfg = cfg.get("mail", {})
     on_processed = mail_cfg.get("on_processed", "label")
     label_name = mail_cfg.get("label_name", "Processed")
@@ -108,7 +122,9 @@ def run_poll(watcher: MailWatcher, cfg: dict) -> int:
 
     total_notes = 0
     for msg in watcher.poll(max_messages=max_per_poll):
-        total_notes += process_message(watcher, msg, on_processed, label_name)
+        total_notes += process_message(
+            watcher, msg, on_processed, label_name, processed_folder_id
+        )
 
     log.info("poll.cycle.done", notes_written=total_notes)
     return total_notes
@@ -125,9 +141,18 @@ def main() -> None:
     interval = args.interval or mail_cfg.get("poll_interval_seconds", 300)
 
     watcher = MailWatcher()
+
+    # If on_processed == 'move', resolve (or create) the destination folder once
+    processed_folder_id = None
+    if mail_cfg.get("on_processed") == "move":
+        parent = mail_cfg.get("source_folder", get_settings().m365_folder)
+        processed_name = mail_cfg.get("processed_folder", "Processed")
+        processed_folder_id = watcher.ensure_child_folder(parent, processed_name)
+        log.info("poll.processed_folder_ready", parent=parent, child=processed_name)
+
     log.info("poll.start", interval_seconds=interval, once=args.once)
 
-    run_poll(watcher, cfg)
+    run_poll(watcher, cfg, processed_folder_id)
 
     if args.once:
         return
@@ -135,7 +160,7 @@ def main() -> None:
     while True:
         log.info("poll.sleeping", seconds=interval)
         time.sleep(interval)
-        run_poll(watcher, cfg)
+        run_poll(watcher, cfg, processed_folder_id)
 
 
 if __name__ == "__main__":

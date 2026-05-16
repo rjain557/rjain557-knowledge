@@ -1,7 +1,8 @@
 mail:
-  folder: Brain
-  on_processed: label
-  label_name: Processed
+  folder: Inbox                # source folder to poll (overridden by M365_FOLDER env)
+  on_processed: move           # move | label | none
+  processed_folder: Processed  # subfolder of `folder` to move messages into
+  label_name: Processed        # only used when on_processed == 'label'
   poll_interval_seconds: 300
   max_per_poll: 20
 

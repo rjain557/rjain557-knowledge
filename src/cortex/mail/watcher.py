@@ -59,19 +59,43 @@ class MailWatcher:
 
     # ── Folder resolution ─────────────────────────────────────────────────
 
-    def _get_folder_id(self) -> str:
+    def _get_folder_id(self, folder_name: str | None = None) -> str:
         settings = self._settings
         mailbox = settings.m365_mailbox
-        folder_name = settings.m365_folder
+        name = folder_name or settings.m365_folder
 
-        url = f"{GRAPH_BASE}/users/{mailbox}/mailFolders"
+        url = f"{GRAPH_BASE}/users/{mailbox}/mailFolders?$top=100"
         resp = requests.get(url, headers=self._headers(), timeout=30)
         resp.raise_for_status()
         for folder in resp.json().get("value", []):
-            if folder["displayName"].lower() == folder_name.lower():
+            if folder["displayName"].lower() == name.lower():
                 return folder["id"]
 
-        raise ValueError(f"Mail folder '{folder_name}' not found in {mailbox}")
+        raise ValueError(f"Mail folder '{name}' not found in {mailbox}")
+
+    def ensure_child_folder(self, parent_folder_name: str, child_name: str) -> str:
+        """Return the folder ID of <parent>/<child>, creating it if missing."""
+        settings = self._settings
+        mailbox = settings.m365_mailbox
+        parent_id = self._get_folder_id(parent_folder_name)
+
+        url = f"{GRAPH_BASE}/users/{mailbox}/mailFolders/{parent_id}/childFolders?$top=100"
+        resp = requests.get(url, headers=self._headers(), timeout=30)
+        resp.raise_for_status()
+        for folder in resp.json().get("value", []):
+            if folder["displayName"].lower() == child_name.lower():
+                return folder["id"]
+
+        # Create it
+        log.info("mail.folder.create", parent=parent_folder_name, child=child_name)
+        resp = requests.post(
+            f"{GRAPH_BASE}/users/{mailbox}/mailFolders/{parent_id}/childFolders",
+            headers=self._headers(),
+            json={"displayName": child_name},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return resp.json()["id"]
 
     # ── Polling ───────────────────────────────────────────────────────────
 
@@ -114,6 +138,21 @@ class MailWatcher:
             timeout=15,
         )
         resp.raise_for_status()
+
+    def move_message(self, message_id: str, destination_folder_id: str) -> str:
+        """Move a message to another folder. Returns the new message ID."""
+        settings = self._settings
+        url = f"{GRAPH_BASE}/users/{settings.m365_mailbox}/messages/{message_id}/move"
+        resp = requests.post(
+            url,
+            headers=self._headers(),
+            json={"destinationId": destination_folder_id},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        new_id = resp.json().get("id", "")
+        log.debug("mail.moved", old_id=message_id[:30], new_id=new_id[:30])
+        return new_id
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
