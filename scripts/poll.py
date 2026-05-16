@@ -45,7 +45,14 @@ def process_message(
     message_id = msg["message_id"]
 
     if repo.is_email_processed(message_id):
-        log.debug("poll.email.skip_already_processed", message_id=message_id)
+        # DB knows about it but it's still unread/in-inbox -> finish the mailbox-side cleanup
+        log.info("poll.email.skip_already_processed", subject=msg["subject"][:80])
+        try:
+            watcher.mark_read(message_id)
+            if on_processed == "move" and processed_folder_id:
+                watcher.move_message(message_id, processed_folder_id)
+        except Exception as exc:
+            log.warning("poll.email.cleanup_failed", error=str(exc))
         return 0
 
     links = extract_links(msg["body_html"])
