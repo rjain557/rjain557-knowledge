@@ -30,6 +30,7 @@ from cortex.extractors import extract_for_type
 from cortex.relevance.scorer import score as score_relevance, is_relevant
 from cortex.db import repositories as repo
 from cortex.vault.writer import write_inbox_note
+from cortex.deep_research.auto import maybe_auto_research
 
 log = structlog.get_logger(__name__)
 
@@ -107,6 +108,22 @@ def process_message(
             note_id=note_id,
             relevant=is_relevant(scores),
         )
+
+        # Auto-trigger Deep Research (if config enables + score is above floor +
+        # daily cap not exceeded). This runs synchronously inside the poll loop
+        # so failures surface in the webhook's /poll response.
+        try:
+            decision, reason = maybe_auto_research(
+                source_id=source_id,
+                title=content.title,
+                body_markdown=content.body_markdown,
+                primary_domain=max(scores, key=scores.get) if scores else None,
+                domain_scores=scores,
+            )
+            log.info("poll.auto_dr", decision=decision, reason=reason,
+                     source_id=source_id)
+        except Exception as exc:
+            log.warning("poll.auto_dr.error", source_id=source_id, error=str(exc)[:200])
 
     # Mark processed in mailbox
     watcher.mark_read(message_id)

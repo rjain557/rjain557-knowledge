@@ -70,6 +70,9 @@ def write_inbox_note(
         tags=[],
     )
 
+    # Generate the OpenAI embedding immediately so VECTOR_SEARCH works
+    repo.embed_note(note_id)
+
     return relative_path, note_id
 
 

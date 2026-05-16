@@ -77,6 +77,15 @@ def run_deep_research(
         result.run_id = run_id
         result.duration_seconds = time.monotonic() - t0
 
+        # Verification pass — Haiku 4.5 fact-checks the article against its
+        # cited sources, flags unsupported / likely-false claims.
+        from cortex.deep_research.verifier import (
+            verify_article, render_verification_section,
+        )
+        verification = verify_article(result.article_markdown, result.citations)
+        if not verification.is_clean:
+            result.article_markdown += render_verification_section(verification)
+
         article_path = _write_topic_article(
             topic=topic,
             article_markdown=result.article_markdown,
@@ -85,6 +94,7 @@ def run_deep_research(
             citations=result.citations,
             run_id=run_id,
             cost_usd=result.cost_usd,
+            verification=verification,
         )
         result.article_path = article_path
 
@@ -286,6 +296,7 @@ def _write_topic_article(
     citations: list[dict],
     run_id: int,
     cost_usd: float,
+    verification=None,
 ) -> str:
     settings = get_settings()
     vault = settings.vault_path
@@ -309,6 +320,9 @@ def _write_topic_article(
         "captured_at": now_pacific().isoformat(),
         "title": topic,
         "tags": ["deep-research"],
+        "verified": (verification.verdict if verification else "skipped"),
+        "flagged_claims_count": (len(verification.flagged_claims)
+                                 if verification else 0),
     }
     post = frontmatter.Post(article_markdown, **fm)
     file_path.write_text(frontmatter.dumps(post), encoding="utf-8")
@@ -317,13 +331,20 @@ def _write_topic_article(
     relative_path = str(file_path.relative_to(vault)).replace("\\", "/")
     conn = get_connection()
     # usp_upsert_note's @source_id is NULL when this is a topic-only run
-    conn.execute(
+    row = conn.execute(
         "EXEC dbo.usp_upsert_note ?, ?, ?, ?, ?, ?, ?, ?",
         relative_path, triggered_source_id if triggered_source_id else None,
         topic, "topic", primary_domain,
         article_markdown, json.dumps(fm, default=str), json.dumps(["deep-research"]),
     ).fetchone()
     conn.commit()
+    note_id = int(row.note_id) if row else None
+
+    # Generate the OpenAI embedding for this topic note so VECTOR_SEARCH works
+    if note_id:
+        from cortex.db.repositories import embed_note
+        embed_note(note_id)
+
     return relative_path
 
 

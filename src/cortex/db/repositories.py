@@ -186,6 +186,51 @@ def record_relevance_scores(
             )
 
 
+# ── Embeddings ────────────────────────────────────────────────────────────────
+
+def embed_note(note_id: int) -> dict:
+    """Generate the OpenAI embedding for one note and store it on dbo.notes.
+
+    Wraps `EXEC dbo.usp_embed_note`. Returns the proc's result row as a dict.
+    Never raises — embedding failures are logged but should NOT block the
+    surrounding ingestion / DR pipeline.
+    """
+    try:
+        conn = get_connection()
+        row = conn.execute("EXEC dbo.usp_embed_note @note_id = ?", note_id).fetchone()
+        conn.commit()
+        result = {"note_id": int(row.note_id) if row else note_id,
+                  "norm": float(row.norm) if row and row.norm is not None else None,
+                  "status": row.status if row else "no result"}
+        log.info("db.embed_note", **result)
+        return result
+    except Exception as exc:
+        log.warning("db.embed_note.error", note_id=note_id, error=str(exc)[:200])
+        return {"note_id": note_id, "norm": None, "status": f"error: {exc}"}
+
+
+# ── Deep research housekeeping ────────────────────────────────────────────────
+
+def deep_research_count_today() -> int:
+    """Count successful deep-research runs that started in the last 24h (UTC)."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM dbo.deep_research_runs "
+        "WHERE started_at >= DATEADD(hour, -24, SYSUTCDATETIME()) AND status = 'completed'"
+    ).fetchone()
+    return int(row.n) if row else 0
+
+
+def source_already_researched(source_id: int) -> bool:
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT 1 FROM dbo.deep_research_runs "
+        "WHERE triggered_source_id = ? AND status = 'completed'",
+        source_id,
+    ).fetchone()
+    return row is not None
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _hash(url: str) -> bytes:
