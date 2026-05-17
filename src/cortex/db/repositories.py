@@ -56,6 +56,26 @@ def is_link_processed(url: str) -> bool:
     return row is not None
 
 
+def is_link_ingested(url: str) -> bool:
+    """True only if the URL has a SUCCESSFUL source row.
+
+    Use this for retry-friendly dedup (e.g. GitHub-trending scanner):
+    a link recorded with NO source means a previous extraction failed and
+    we want to retry next time.
+    """
+    conn = get_connection()
+    url_hash = _hash(url)
+    row = conn.execute(
+        """
+        SELECT 1 FROM dbo.processed_links pl
+        JOIN   dbo.sources s ON s.link_id = pl.link_id
+        WHERE  pl.url_hash = ?
+        """,
+        url_hash,
+    ).fetchone()
+    return row is not None
+
+
 def record_link(
     original_url: str,
     source_type: str,

@@ -70,7 +70,8 @@ deep_research:
   auto_trigger_in_poll: true
   auto_min_score: 0.3           # skip sources where every domain score < this
   max_auto_per_day: 25          # hard daily cap (last 24h, completed runs only)
-  auto_model: claude-opus-4-7   # model used for auto runs
+  auto_model: claude-sonnet-4-6 # ~4x cheaper than Opus, negligible quality loss for auto runs.
+                                # Manual `scripts/deep_research.py --model claude-opus-4-7` overrides.
   auto_max_searches: 5          # web_search call budget per auto run
   skip_already_researched: true # don't re-run if a completed DR row exists for the source
 

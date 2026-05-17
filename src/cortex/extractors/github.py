@@ -20,15 +20,22 @@ def extract(url: str) -> ExtractedContent | None:
         return None
     owner, repo = owner_repo
     token = get_settings().github_token
-    headers = {"Accept": "application/vnd.github+json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    base_headers = {"Accept": "application/vnd.github+json"}
+    headers = {**base_headers, "Authorization": f"Bearer {token}"} if token else dict(base_headers)
+
+    def _gh_get(path: str, accept: str | None = None):
+        """One GET to api.github.com, retry without auth if token is bad."""
+        h = {**headers, **({"Accept": accept} if accept else {})}
+        r = requests.get(f"https://api.github.com{path}", headers=h, timeout=15)
+        if r.status_code == 401 and "Authorization" in h:
+            log.warning("extractor.github.bad_token",
+                        hint="falling back to unauthenticated")
+            h2 = {**base_headers, **({"Accept": accept} if accept else {})}
+            r = requests.get(f"https://api.github.com{path}", headers=h2, timeout=15)
+        return r
 
     try:
-        repo_resp = requests.get(
-            f"https://api.github.com/repos/{owner}/{repo}",
-            headers=headers, timeout=15,
-        )
+        repo_resp = _gh_get(f"/repos/{owner}/{repo}")
         if repo_resp.status_code == 404:
             return None
         repo_resp.raise_for_status()
@@ -40,11 +47,8 @@ def extract(url: str) -> ExtractedContent | None:
     # README
     readme = ""
     try:
-        rd = requests.get(
-            f"https://api.github.com/repos/{owner}/{repo}/readme",
-            headers={**headers, "Accept": "application/vnd.github.raw"},
-            timeout=15,
-        )
+        rd = _gh_get(f"/repos/{owner}/{repo}/readme",
+                     accept="application/vnd.github.raw")
         if rd.ok:
             readme = rd.text[:20000]
     except Exception:
@@ -53,10 +57,7 @@ def extract(url: str) -> ExtractedContent | None:
     # Latest 5 releases
     releases_md = ""
     try:
-        rel = requests.get(
-            f"https://api.github.com/repos/{owner}/{repo}/releases?per_page=5",
-            headers=headers, timeout=15,
-        )
+        rel = _gh_get(f"/repos/{owner}/{repo}/releases?per_page=5")
         if rel.ok:
             rows = []
             for r in rel.json():

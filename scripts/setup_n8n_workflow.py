@@ -32,6 +32,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 N8N_BASE = "https://10.100.254.225/api/v1"   # use IP to dodge internal DNS;
                                               # cert won't match -> verify=False
 WORKFLOW_NAME = "Cortex - Hourly Mail Poll"
+WORKFLOW_NAME_GITHUB = "Cortex - Hourly GitHub Scan"
 
 VAULT_KEY = (
     Path.home()
@@ -151,14 +152,87 @@ def build_workflow(webhook_url: str, webhook_secret: str) -> dict:
     }
 
 
-def find_existing(api_key: str) -> dict | None:
+def find_existing(api_key: str, name: str = WORKFLOW_NAME) -> dict | None:
     r = requests.get(f"{N8N_BASE}/workflows", headers=_headers(api_key),
                      verify=False, timeout=15)
     r.raise_for_status()
     for wf in r.json().get("data", []):
-        if wf.get("name") == WORKFLOW_NAME:
+        if wf.get("name") == name:
             return wf
     return None
+
+
+def build_github_scan_workflow(webhook_url: str, webhook_secret: str) -> dict:
+    """Hourly trigger -> POST /github-scan -> log."""
+    return {
+        "name": WORKFLOW_NAME_GITHUB,
+        "nodes": [
+            {
+                "parameters": {
+                    "rule": {"interval": [{"field": "hours", "hoursInterval": 1}]}
+                },
+                "id": "trigger-1",
+                "name": "Every hour",
+                "type": "n8n-nodes-base.scheduleTrigger",
+                "typeVersion": 1.2,
+                "position": [240, 300],
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": webhook_url,
+                    "sendHeaders": True,
+                    "headerParameters": {
+                        "parameters": [
+                            {"name": "X-Webhook-Secret", "value": webhook_secret},
+                            {"name": "Content-Type", "value": "application/json"},
+                        ]
+                    },
+                    "options": {
+                        "timeout": 1800000,
+                        "response": {"response": {"neverError": True}},
+                    },
+                },
+                "id": "http-1",
+                "name": "Scan GitHub",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [560, 300],
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "options": {"caseSensitive": True, "typeValidation": "loose"},
+                        "conditions": [
+                            {
+                                "id": "cond-1",
+                                "leftValue": "={{ $json.status }}",
+                                "rightValue": "ok",
+                                "operator": {"type": "string", "operation": "notEquals"},
+                            }
+                        ],
+                        "combinator": "and",
+                    }
+                },
+                "id": "if-1",
+                "name": "Failed?",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 2.2,
+                "position": [880, 300],
+            },
+        ],
+        "connections": {
+            "Every hour":  {"main": [[{"node": "Scan GitHub", "type": "main", "index": 0}]]},
+            "Scan GitHub": {"main": [[{"node": "Failed?",     "type": "main", "index": 0}]]},
+        },
+        "settings": {
+            "executionOrder": "v1",
+            "saveExecutionProgress": True,
+            "saveManualExecutions": True,
+            "saveDataErrorExecution": "all",
+            "saveDataSuccessExecution": "all",
+        },
+    }
 
 
 def main() -> None:
@@ -170,47 +244,62 @@ def main() -> None:
     parser.add_argument("--webhook-secret",
                         default=os.environ.get("WEBHOOK_SECRET", ""),
                         help="Shared secret (defaults to $WEBHOOK_SECRET)")
+    parser.add_argument("--workflow", choices=["mail", "github", "both"],
+                        default="both",
+                        help="Which workflow(s) to upsert (default: both)")
+    parser.add_argument("--github-scan-url",
+                        default="http://10.100.254.200:8765/github-scan",
+                        help="Cortex /github-scan endpoint")
     args = parser.parse_args()
 
     if not args.webhook_secret:
         raise SystemExit("WEBHOOK_SECRET env var (or --webhook-secret) required")
 
     api_key = _api_key()
-    wf = build_workflow(args.webhook_url, args.webhook_secret)
+
+    targets = []
+    if args.workflow in ("mail", "both"):
+        targets.append((WORKFLOW_NAME,
+                        build_workflow(args.webhook_url, args.webhook_secret)))
+    if args.workflow in ("github", "both"):
+        targets.append((WORKFLOW_NAME_GITHUB,
+                        build_github_scan_workflow(args.github_scan_url,
+                                                   args.webhook_secret)))
 
     if args.dry_run:
-        print(json.dumps(wf, indent=2))
+        for name, wf in targets:
+            print(f"\n# === {name} ===")
+            print(json.dumps(wf, indent=2))
         return
 
-    existing = find_existing(api_key)
-    if existing:
-        wf_id = existing["id"]
-        # PUT update
-        r = requests.put(f"{N8N_BASE}/workflows/{wf_id}",
-                         headers=_headers(api_key), json=wf,
-                         verify=False, timeout=30)
-        r.raise_for_status()
-        print(f"Updated workflow id={wf_id}: {WORKFLOW_NAME}")
-    else:
-        r = requests.post(f"{N8N_BASE}/workflows",
-                          headers=_headers(api_key), json=wf,
-                          verify=False, timeout=30)
-        r.raise_for_status()
-        wf_id = r.json().get("id", "?")
-        print(f"Created workflow id={wf_id}: {WORKFLOW_NAME}")
-
-    # Activate it
-    try:
-        r = requests.post(f"{N8N_BASE}/workflows/{wf_id}/activate",
-                          headers=_headers(api_key), verify=False, timeout=15)
-        if r.ok:
-            print("Activated.")
+    for name, wf in targets:
+        existing = find_existing(api_key, name)
+        if existing:
+            wf_id = existing["id"]
+            r = requests.put(f"{N8N_BASE}/workflows/{wf_id}",
+                             headers=_headers(api_key), json=wf,
+                             verify=False, timeout=30)
+            r.raise_for_status()
+            print(f"Updated workflow id={wf_id}: {name}")
         else:
-            print(f"Activate returned {r.status_code}: {r.text[:200]}")
-    except Exception as exc:
-        print(f"Activate failed: {exc}")
+            r = requests.post(f"{N8N_BASE}/workflows",
+                              headers=_headers(api_key), json=wf,
+                              verify=False, timeout=30)
+            r.raise_for_status()
+            wf_id = r.json().get("id", "?")
+            print(f"Created workflow id={wf_id}: {name}")
 
-    print(f"\nOpen in UI: https://n8n.ai.technijian.com/workflow/{wf_id}")
+        try:
+            r = requests.post(f"{N8N_BASE}/workflows/{wf_id}/activate",
+                              headers=_headers(api_key), verify=False, timeout=15)
+            if r.ok:
+                print(f"  Activated.")
+            else:
+                print(f"  Activate returned {r.status_code}: {r.text[:200]}")
+        except Exception as exc:
+            print(f"  Activate failed: {exc}")
+
+        print(f"  UI: https://n8n.ai.technijian.com/workflow/{wf_id}")
 
 
 if __name__ == "__main__":

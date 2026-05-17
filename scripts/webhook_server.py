@@ -147,6 +147,63 @@ def trigger_poll():
     )
 
 
+class GithubScanResult(BaseModel):
+    status: str
+    checked: int
+    new: int
+    skipped_known: int
+    extract_failed: int
+    auto_dr_fired: int
+    duration_seconds: float
+    by_category: dict
+
+
+@app.post("/github-scan", response_model=GithubScanResult,
+          dependencies=[Depends(_check_secret)])
+def trigger_github_scan(top_n: int = 5):
+    """Discover top-N trending GitHub repos per Technijian AI category,
+    dedup, and feed any new ones into the ingestion pipeline.
+
+    Idempotent — repos already in dbo.processed_links are skipped.
+    """
+    from cortex.utils.timezone import now_pacific
+    from cortex.feeds.scan_runner import run_scan
+
+    t0 = time.monotonic()
+    log.info("webhook.github_scan.start", top_n=top_n)
+    try:
+        summary = run_scan(top_n=top_n, dry_run=False)
+        duration = time.monotonic() - t0
+        log.info("webhook.github_scan.done",
+                 new=summary["new"], known=summary["skipped_known"],
+                 duration=round(duration, 1))
+        return GithubScanResult(
+            status="ok",
+            checked=summary["checked"],
+            new=summary["new"],
+            skipped_known=summary["skipped_known"],
+            extract_failed=summary["extract_failed"],
+            auto_dr_fired=summary["auto_dr_fired"],
+            duration_seconds=round(duration, 2),
+            by_category=summary["by_category"],
+        )
+    except Exception as exc:
+        log.error("webhook.github_scan.failed", error=str(exc))
+        try:
+            from cortex.mail.notify import send_alert
+            send_alert(
+                subject=f"[Cortex] GitHub scan FAILED at {now_pacific():%Y-%m-%d %H:%M %Z}",
+                body_markdown=(
+                    f"GitHub scan threw an exception.\n\n"
+                    f"Error: {exc}\n\n"
+                    f"Duration before failure: {time.monotonic() - t0:.1f} s"
+                ),
+            )
+        except Exception:
+            pass
+        raise HTTPException(500, f"GitHub scan failed: {exc}")
+
+
 if __name__ == "__main__":
     import uvicorn
     port = get_settings().webhook_port
