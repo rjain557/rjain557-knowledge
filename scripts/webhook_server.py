@@ -204,6 +204,58 @@ def trigger_github_scan(top_n: int = 5):
         raise HTTPException(500, f"GitHub scan failed: {exc}")
 
 
+class RepoReviewResult(BaseModel):
+    status: str
+    repos_processed: int
+    prs_opened: int
+    no_improvements: int
+    failed: int
+    duration_seconds: float
+    results: list
+
+
+@app.post("/repo-review", response_model=RepoReviewResult,
+          dependencies=[Depends(_check_secret)])
+def trigger_repo_review(max_repos: int | None = None):
+    """Run the daily Cortex repo-review pass over the configured allowlist.
+    Opens / updates a PR per repo with knowledge/*.md improvement prompts."""
+    from cortex.utils.timezone import now_pacific
+    from cortex.repo_review.runner import run_daily
+
+    t0 = time.monotonic()
+    log.info("webhook.repo_review.start", max_repos=max_repos)
+    try:
+        summary = run_daily(max_repos=max_repos)
+        duration = time.monotonic() - t0
+        log.info("webhook.repo_review.done",
+                 prs=summary["prs_opened"],
+                 duration=round(duration, 1))
+        return RepoReviewResult(
+            status="ok",
+            repos_processed=summary["repos_processed"],
+            prs_opened=summary["prs_opened"],
+            no_improvements=summary["no_improvements"],
+            failed=summary["failed"],
+            duration_seconds=round(duration, 2),
+            results=summary["results"],
+        )
+    except Exception as exc:
+        log.error("webhook.repo_review.failed", error=str(exc))
+        try:
+            from cortex.mail.notify import send_alert
+            send_alert(
+                subject=f"[Cortex] Repo review FAILED at {now_pacific():%Y-%m-%d %H:%M %Z}",
+                body_markdown=(
+                    f"Repo-review batch threw an exception.\n\n"
+                    f"Error: {exc}\n\n"
+                    f"Duration before failure: {time.monotonic() - t0:.1f} s"
+                ),
+            )
+        except Exception:
+            pass
+        raise HTTPException(500, f"Repo review failed: {exc}")
+
+
 if __name__ == "__main__":
     import uvicorn
     port = get_settings().webhook_port

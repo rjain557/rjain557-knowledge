@@ -33,6 +33,7 @@ N8N_BASE = "https://10.100.254.225/api/v1"   # use IP to dodge internal DNS;
                                               # cert won't match -> verify=False
 WORKFLOW_NAME = "Cortex - Hourly Mail Poll"
 WORKFLOW_NAME_GITHUB = "Cortex - Hourly GitHub Scan"
+WORKFLOW_NAME_REPO_REVIEW = "Cortex - Daily Repo Review"
 
 VAULT_KEY = (
     Path.home()
@@ -152,6 +153,81 @@ def build_workflow(webhook_url: str, webhook_secret: str) -> dict:
     }
 
 
+def build_repo_review_workflow(webhook_url: str, webhook_secret: str) -> dict:
+    """Daily trigger -> POST /repo-review -> log. Fires at 03:00 PT."""
+    return {
+        "name": WORKFLOW_NAME_REPO_REVIEW,
+        "nodes": [
+            {
+                "parameters": {
+                    "rule": {"interval": [{"field": "days", "daysInterval": 1,
+                                           "triggerAtHour": 3,
+                                           "triggerAtMinute": 0}]}
+                },
+                "id": "trigger-1",
+                "name": "Daily at 03:00",
+                "type": "n8n-nodes-base.scheduleTrigger",
+                "typeVersion": 1.2,
+                "position": [240, 300],
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": webhook_url,
+                    "sendHeaders": True,
+                    "headerParameters": {
+                        "parameters": [
+                            {"name": "X-Webhook-Secret", "value": webhook_secret},
+                            {"name": "Content-Type", "value": "application/json"},
+                        ]
+                    },
+                    "options": {
+                        "timeout": 3600000,   # 1 hr — repo cloning + Sonnet can be slow
+                        "response": {"response": {"neverError": True}},
+                    },
+                },
+                "id": "http-1",
+                "name": "Review Repos",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [560, 300],
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "options": {"caseSensitive": True, "typeValidation": "loose"},
+                        "conditions": [
+                            {
+                                "id": "cond-1",
+                                "leftValue": "={{ $json.status }}",
+                                "rightValue": "ok",
+                                "operator": {"type": "string", "operation": "notEquals"},
+                            }
+                        ],
+                        "combinator": "and",
+                    }
+                },
+                "id": "if-1",
+                "name": "Failed?",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 2.2,
+                "position": [880, 300],
+            },
+        ],
+        "connections": {
+            "Daily at 03:00": {"main": [[{"node": "Review Repos", "type": "main", "index": 0}]]},
+            "Review Repos":   {"main": [[{"node": "Failed?",      "type": "main", "index": 0}]]},
+        },
+        "settings": {
+            "executionOrder": "v1",
+            "saveExecutionProgress": True,
+            "saveManualExecutions": True,
+            "saveDataErrorExecution": "all",
+            "saveDataSuccessExecution": "all",
+        },
+    }
+
+
 def find_existing(api_key: str, name: str = WORKFLOW_NAME) -> dict | None:
     r = requests.get(f"{N8N_BASE}/workflows", headers=_headers(api_key),
                      verify=False, timeout=15)
@@ -244,12 +320,16 @@ def main() -> None:
     parser.add_argument("--webhook-secret",
                         default=os.environ.get("WEBHOOK_SECRET", ""),
                         help="Shared secret (defaults to $WEBHOOK_SECRET)")
-    parser.add_argument("--workflow", choices=["mail", "github", "both"],
-                        default="both",
-                        help="Which workflow(s) to upsert (default: both)")
+    parser.add_argument("--workflow",
+                        choices=["mail", "github", "repo-review", "all"],
+                        default="all",
+                        help="Which workflow(s) to upsert (default: all)")
     parser.add_argument("--github-scan-url",
                         default="http://10.100.254.200:8765/github-scan",
                         help="Cortex /github-scan endpoint")
+    parser.add_argument("--repo-review-url",
+                        default="http://10.100.254.200:8765/repo-review",
+                        help="Cortex /repo-review endpoint")
     args = parser.parse_args()
 
     if not args.webhook_secret:
@@ -258,12 +338,16 @@ def main() -> None:
     api_key = _api_key()
 
     targets = []
-    if args.workflow in ("mail", "both"):
+    if args.workflow in ("mail", "all"):
         targets.append((WORKFLOW_NAME,
                         build_workflow(args.webhook_url, args.webhook_secret)))
-    if args.workflow in ("github", "both"):
+    if args.workflow in ("github", "all"):
         targets.append((WORKFLOW_NAME_GITHUB,
                         build_github_scan_workflow(args.github_scan_url,
+                                                   args.webhook_secret)))
+    if args.workflow in ("repo-review", "all"):
+        targets.append((WORKFLOW_NAME_REPO_REVIEW,
+                        build_repo_review_workflow(args.repo_review_url,
                                                    args.webhook_secret)))
 
     if args.dry_run:

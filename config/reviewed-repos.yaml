@@ -1,0 +1,55 @@
+# Private repos the daily Cortex repo-review pass writes improvement
+# prompts into. Each repo gets a `knowledge/` directory populated by an
+# auto-opened PR on branch `cortex-knowledge/YYYY-MM-DD`.
+#
+# Add/remove repos here without touching code — the next daily run picks
+# up the change.
+
+review_cadence_days: 1            # how often each repo is reviewed
+max_repos_per_run: 5              # bounds the per-cycle compute cost
+max_prompts_per_repo: 5           # how many improvement files to write
+analysis_model: claude-sonnet-4-6 # main analyzer
+default_branch_for_pr: master     # fallback if API doesn't return one
+pr_branch_prefix: cortex-knowledge
+
+# Per-repo settings live alongside the list so the YAML stays declarative.
+repos:
+  - name: technijian-usa/tech-web-myjian
+    domain: agent-orchestration
+    notes: Python; primary agent-harness codebase. Highest activity.
+
+  - name: technijian-seo/Technijiansa
+    domain: seo-agents
+    notes: JavaScript; SEO-domain main site.
+
+  - name: technijian-usa/tech-web-chatai.v8
+    domain: agent-orchestration
+    notes: TypeScript; current Chat AI front-end.
+
+  - name: technijian-usa/tech-web-shared
+    domain: agent-orchestration
+    notes: C#; shared library — improvements here propagate.
+
+  - name: technijian-usa/tech-web-myeos
+    domain: tech-support-agents
+    notes: JavaScript; EOS automation.
+
+  - name: technijian-seo/sdlc
+    domain: agent-orchestration
+    notes: Python; SDLC tooling — high leverage on dev productivity.
+
+  - name: technijian-usa/Tech-Web-Clientportal
+    domain: tech-support-agents
+    notes: Main client portal; large codebase.
+
+  - name: technijian-usa/tech-web-nexus
+    domain: agent-orchestration
+    notes: TypeScript; orchestration nexus.
+
+  - name: technijian-usa/tech-web-myhr
+    domain: office-ops
+    notes: TypeScript; HR app — office-ops domain.
+
+  - name: technijian-usa/tech-web-mypsa
+    domain: office-ops
+    notes: TypeScript; PSA (Professional Services Automation).
