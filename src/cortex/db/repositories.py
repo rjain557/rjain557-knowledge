@@ -82,9 +82,25 @@ def record_link(
     email_id: int | None = None,
     canonical_url: str | None = None,
 ) -> int:
+    """UPSERT into dbo.processed_links — returns the link_id whether it's
+    a new row or an existing one. Idempotent: safe to call repeatedly
+    on the same URL (e.g. retry after a failed extraction)."""
     canonical = canonical_url or original_url
     url_hash = _hash(canonical)
     with transaction() as conn:
+        existing = conn.execute(
+            "SELECT link_id FROM dbo.processed_links WHERE url_hash = ?",
+            url_hash,
+        ).fetchone()
+        if existing:
+            # Refresh classified_at so the row reflects the most recent attempt
+            conn.execute(
+                "UPDATE dbo.processed_links SET classified_at = SYSUTCDATETIME(), "
+                "source_type = ?, status = 'classified' WHERE link_id = ?",
+                source_type, existing.link_id,
+            )
+            return int(existing.link_id)
+
         row = conn.execute(
             """
             INSERT INTO dbo.processed_links
