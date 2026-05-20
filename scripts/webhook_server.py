@@ -256,6 +256,52 @@ def trigger_repo_review(max_repos: int | None = None):
         raise HTTPException(500, f"Repo review failed: {exc}")
 
 
+class LintResult(BaseModel):
+    status: str
+    output_path: str
+    notes_checked: int
+    orphan_topics: int
+    near_dup_pairs: int
+    contradictions_flagged: int
+    stale_topics: int
+    duration_seconds: float
+
+
+@app.post("/lint", response_model=LintResult, dependencies=[Depends(_check_secret)])
+def trigger_lint(max_pair_checks: int = 15):
+    """Daily wiki health check — finds contradictions, orphans, near-dups, stale topics.
+    Writes Meta/lint-YYYY-MM-DD.md inside the vault."""
+    from cortex.utils.timezone import now_pacific
+    from cortex.lint.wiki_lint import run_lint
+
+    t0 = time.monotonic()
+    log.info("webhook.lint.start", max_pair_checks=max_pair_checks)
+    try:
+        findings = run_lint(max_pair_checks=max_pair_checks)
+        duration = time.monotonic() - t0
+        return LintResult(
+            status="ok",
+            output_path=findings.output_path,
+            notes_checked=findings.stats["notes_checked"],
+            orphan_topics=findings.stats["orphan_topics"],
+            near_dup_pairs=findings.stats["near_dup_pairs"],
+            contradictions_flagged=findings.stats["contradictions_flagged"],
+            stale_topics=findings.stats["stale_topics"],
+            duration_seconds=round(duration, 2),
+        )
+    except Exception as exc:
+        log.error("webhook.lint.failed", error=str(exc))
+        try:
+            from cortex.mail.notify import send_alert
+            send_alert(
+                subject=f"[Cortex] Wiki lint FAILED at {now_pacific():%Y-%m-%d %H:%M %Z}",
+                body_markdown=f"Lint pass threw an exception.\n\nError: {exc}",
+            )
+        except Exception:
+            pass
+        raise HTTPException(500, f"Lint failed: {exc}")
+
+
 if __name__ == "__main__":
     import uvicorn
     port = get_settings().webhook_port

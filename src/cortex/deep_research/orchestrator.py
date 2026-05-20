@@ -99,6 +99,23 @@ def run_deep_research(
         result.article_path = article_path
 
         _finalise_run_row(run_id, result)
+
+        # Karpathy LLM-Wiki pattern: a new source should touch related
+        # existing topics, not just write a fresh standalone article.
+        # Best-effort; don't fail the run if synthesizer errors.
+        try:
+            from cortex.synthesizer.cross_page import synthesize_cross_page_updates
+            updates = synthesize_cross_page_updates(
+                new_source_title=topic,
+                new_source_body=result.article_markdown,
+                primary_domain=primary_domain,
+                top_k=3,
+            )
+            log.info("deep_research.cross_page_updates",
+                     run_id=run_id, updates_applied=len(updates))
+        except Exception as exc:
+            log.warning("deep_research.synthesizer_error", error=str(exc)[:200])
+
         log.info(
             "deep_research.done",
             run_id=run_id, topic=topic[:60], searches=result.web_searches_used,

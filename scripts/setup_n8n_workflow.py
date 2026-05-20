@@ -34,6 +34,7 @@ N8N_BASE = "https://10.100.254.225/api/v1"   # use IP to dodge internal DNS;
 WORKFLOW_NAME = "Cortex - Hourly Mail Poll"
 WORKFLOW_NAME_GITHUB = "Cortex - Hourly GitHub Scan"
 WORKFLOW_NAME_REPO_REVIEW = "Cortex - Daily Repo Review"
+WORKFLOW_NAME_LINT = "Cortex - Daily Wiki Lint"
 
 VAULT_KEY = (
     Path.home()
@@ -228,6 +229,81 @@ def build_repo_review_workflow(webhook_url: str, webhook_secret: str) -> dict:
     }
 
 
+def build_lint_workflow(webhook_url: str, webhook_secret: str) -> dict:
+    """Daily wiki lint at 02:00 PT — one hour before the repo review."""
+    return {
+        "name": WORKFLOW_NAME_LINT,
+        "nodes": [
+            {
+                "parameters": {
+                    "rule": {"interval": [{"field": "days", "daysInterval": 1,
+                                           "triggerAtHour": 2,
+                                           "triggerAtMinute": 0}]}
+                },
+                "id": "trigger-1",
+                "name": "Daily at 02:00",
+                "type": "n8n-nodes-base.scheduleTrigger",
+                "typeVersion": 1.2,
+                "position": [240, 300],
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": webhook_url,
+                    "sendHeaders": True,
+                    "headerParameters": {
+                        "parameters": [
+                            {"name": "X-Webhook-Secret", "value": webhook_secret},
+                            {"name": "Content-Type", "value": "application/json"},
+                        ]
+                    },
+                    "options": {
+                        "timeout": 1800000,
+                        "response": {"response": {"neverError": True}},
+                    },
+                },
+                "id": "http-1",
+                "name": "Lint Wiki",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [560, 300],
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "options": {"caseSensitive": True, "typeValidation": "loose"},
+                        "conditions": [
+                            {
+                                "id": "cond-1",
+                                "leftValue": "={{ $json.status }}",
+                                "rightValue": "ok",
+                                "operator": {"type": "string", "operation": "notEquals"},
+                            }
+                        ],
+                        "combinator": "and",
+                    }
+                },
+                "id": "if-1",
+                "name": "Failed?",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 2.2,
+                "position": [880, 300],
+            },
+        ],
+        "connections": {
+            "Daily at 02:00": {"main": [[{"node": "Lint Wiki", "type": "main", "index": 0}]]},
+            "Lint Wiki":      {"main": [[{"node": "Failed?",   "type": "main", "index": 0}]]},
+        },
+        "settings": {
+            "executionOrder": "v1",
+            "saveExecutionProgress": True,
+            "saveManualExecutions": True,
+            "saveDataErrorExecution": "all",
+            "saveDataSuccessExecution": "all",
+        },
+    }
+
+
 def find_existing(api_key: str, name: str = WORKFLOW_NAME) -> dict | None:
     r = requests.get(f"{N8N_BASE}/workflows", headers=_headers(api_key),
                      verify=False, timeout=15)
@@ -321,7 +397,7 @@ def main() -> None:
                         default=os.environ.get("WEBHOOK_SECRET", ""),
                         help="Shared secret (defaults to $WEBHOOK_SECRET)")
     parser.add_argument("--workflow",
-                        choices=["mail", "github", "repo-review", "all"],
+                        choices=["mail", "github", "repo-review", "lint", "all"],
                         default="all",
                         help="Which workflow(s) to upsert (default: all)")
     parser.add_argument("--github-scan-url",
@@ -330,6 +406,9 @@ def main() -> None:
     parser.add_argument("--repo-review-url",
                         default="http://10.100.254.200:8765/repo-review",
                         help="Cortex /repo-review endpoint")
+    parser.add_argument("--lint-url",
+                        default="http://10.100.254.200:8765/lint",
+                        help="Cortex /lint endpoint")
     args = parser.parse_args()
 
     if not args.webhook_secret:
@@ -349,6 +428,10 @@ def main() -> None:
         targets.append((WORKFLOW_NAME_REPO_REVIEW,
                         build_repo_review_workflow(args.repo_review_url,
                                                    args.webhook_secret)))
+    if args.workflow in ("lint", "all"):
+        targets.append((WORKFLOW_NAME_LINT,
+                        build_lint_workflow(args.lint_url,
+                                            args.webhook_secret)))
 
     if args.dry_run:
         for name, wf in targets:
