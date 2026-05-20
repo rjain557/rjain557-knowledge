@@ -29,8 +29,8 @@ GITHUB_API = "https://api.github.com"
 class PRResult:
     repo: str
     branch: str
-    pr_number: int | None
-    pr_url: str | None
+    pr_number: int | None     # always None in direct-commit mode
+    pr_url: str | None        # commit URL in direct-commit mode
     files_written: int
     status: str
     error: str | None = None
@@ -52,91 +52,90 @@ def _gh_headers() -> dict:
 def write_pr(
     *, full_name: str, default_branch: str,
     knowledge_files: dict[str, str], pr_title: str, pr_body: str,
-    branch_prefix: str = "cortex-knowledge",
+    branch_prefix: str = "cortex-knowledge",   # kept for API compatibility; ignored
 ) -> PRResult:
-    """knowledge_files = {filename inside knowledge/ : markdown content}."""
+    """Commit `knowledge/*.md` files directly to the repo's default branch.
+
+    Per user directive (2026-05-20): no PR review step — push knowledge/
+    straight to master/main. If branch-protection rules require PRs, the
+    push will fail and the run is marked failed (the user can then
+    relax protection for the path or open the PR manually).
+
+    knowledge_files = {filename inside knowledge/ : markdown content}.
+    """
     if not knowledge_files:
-        return PRResult(repo=full_name, branch="", pr_number=None,
+        return PRResult(repo=full_name, branch=default_branch, pr_number=None,
                         pr_url=None, files_written=0, status="empty")
 
     token = get_settings().github_token
     if not token:
-        return PRResult(repo=full_name, branch="", pr_number=None,
+        return PRResult(repo=full_name, branch=default_branch, pr_number=None,
                         pr_url=None, files_written=0,
                         status="failed", error="GITHUB_TOKEN missing")
 
-    today = now_pacific().strftime("%Y-%m-%d")
-    branch = f"{branch_prefix}/{today}"
     clone_url = f"https://x-access-token:{token}@github.com/{full_name}.git"
 
     tmp = Path(tempfile.mkdtemp(prefix="cortex_pr_"))
     try:
-        # Shallow clone the default branch (fast, doesn't need full history)
+        # Shallow clone the default branch (fast, no history needed)
         r = subprocess.run(
             ["git", "clone", "--depth=1", "--branch", default_branch,
              clone_url, str(tmp / "repo")],
             capture_output=True, text=True, timeout=300,
         )
         if r.returncode != 0:
-            return PRResult(repo=full_name, branch=branch, pr_number=None,
-                            pr_url=None, files_written=0,
+            return PRResult(repo=full_name, branch=default_branch,
+                            pr_number=None, pr_url=None, files_written=0,
                             status="failed", error=f"clone: {r.stderr[:300]}")
 
         repo_dir = tmp / "repo"
-
-        # Identity for the commits
         _git(repo_dir, "config", "user.name", "Cortex Repo Review")
         _git(repo_dir, "config", "user.email", "cortex@technijian.com")
 
-        # Always create the branch fresh from the (shallow) default branch.
-        # If the branch already exists upstream from an earlier same-day
-        # run, we overwrite with --force-with-lease at push time — the
-        # branch is auto-generated content, no human commits to lose.
-        _git(repo_dir, "checkout", "-B", branch)
-
+        # Stay on the default branch — no feature branch.
         # Write knowledge/ files
         kdir = repo_dir / "knowledge"
         kdir.mkdir(exist_ok=True)
         for fname, content in knowledge_files.items():
             (kdir / fname).write_text(content, encoding="utf-8")
 
-        # Stage + commit + push
         _git(repo_dir, "add", "knowledge/")
         diff = _git(repo_dir, "diff", "--cached", "--name-only")
         if not diff.stdout.strip():
             shutil.rmtree(tmp, ignore_errors=True)
-            return PRResult(repo=full_name, branch=branch, pr_number=None,
-                            pr_url=None, files_written=0, status="no_changes")
+            return PRResult(repo=full_name, branch=default_branch,
+                            pr_number=None, pr_url=None,
+                            files_written=0, status="no_changes")
 
         files_changed = len(diff.stdout.strip().splitlines())
         commit_msg = pr_title + "\n\n" + pr_body[:2000]
         c = _git(repo_dir, "commit", "-m", commit_msg)
         if c.returncode != 0 and "nothing to commit" not in c.stdout:
             shutil.rmtree(tmp, ignore_errors=True)
-            return PRResult(repo=full_name, branch=branch, pr_number=None,
-                            pr_url=None, files_written=files_changed,
+            return PRResult(repo=full_name, branch=default_branch,
+                            pr_number=None, pr_url=None,
+                            files_written=files_changed,
                             status="failed",
                             error=f"commit: {c.stderr[:300]}")
 
-        # plain --force (not --force-with-lease) because shallow clone has
-        # no remote-tracking ref for the auto-generated branch to lease against
-        p = _git(repo_dir, "push", "--force",
-                 "--set-upstream", "origin", branch)
+        # Push the default branch. NOT --force — if there are concurrent
+        # commits, fail loud rather than overwrite real human work.
+        p = _git(repo_dir, "push", "origin", default_branch)
         if p.returncode != 0:
             shutil.rmtree(tmp, ignore_errors=True)
-            return PRResult(repo=full_name, branch=branch, pr_number=None,
-                            pr_url=None, files_written=files_changed,
+            return PRResult(repo=full_name, branch=default_branch,
+                            pr_number=None, pr_url=None,
+                            files_written=files_changed,
                             status="failed",
-                            error=f"push: {p.stderr[:300]}")
+                            error=f"push (branch protection?): {p.stderr[:400]}")
 
-        # Open the PR (or no-op if already open)
-        pr_number, pr_url = _open_or_get_pr(
-            full_name, branch, default_branch, pr_title, pr_body,
-        )
+        # Grab the new commit SHA for a clickable URL
+        sha = _git(repo_dir, "rev-parse", "HEAD").stdout.strip()[:40]
+        commit_url = f"https://github.com/{full_name}/commit/{sha}" if sha else None
 
-        return PRResult(repo=full_name, branch=branch, pr_number=pr_number,
-                        pr_url=pr_url, files_written=files_changed,
-                        status="ok")
+        return PRResult(repo=full_name, branch=default_branch,
+                        pr_number=None, pr_url=commit_url,
+                        files_written=files_changed, status="ok")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
