@@ -1,0 +1,66 @@
+# Curated evergreen themes the WEEKLY topic-refresh pass keeps current.
+#
+# This is deliberately a SMALL allowlist (not all 122 topics). Re-researching
+# every topic weekly costs ~$725/mo and mostly re-discovers the same sources.
+# Instead we refresh only fast-moving evergreen subjects with a cheap,
+# time-boxed "what's NEW since last refresh" query (~$0.30 each).
+#
+# Each theme accumulates a living digest at Topics/_refresh-{slug}.md — every
+# weekly run appends a `## Refresh (YYYY-MM-DD)` section listing genuinely new
+# sources. The "since" window is the date of the previous digest section.
+#
+# Add a theme = it gets refreshed next week. Remove it = it stops. Cheap to tune.
+
+refresh_cadence_days: 7
+model: claude-sonnet-4-6        # synthesis model (Opus only on manual --model)
+max_searches_per_theme: 4       # web_search budget per theme
+default_lookback_days: 14       # window on first-ever refresh of a theme
+max_themes_per_run: 20          # safety cap
+
+themes:
+  # ---- agent-orchestration (fastest-moving) ----
+  - slug: ai-coding-agent-benchmarks
+    query: "AI coding agent benchmarks and leaderboards — SWE-bench, GAIA, Terminal-Bench, agent rankings"
+    domain: agent-orchestration
+  - slug: claude-code-updates
+    query: "Claude Code new features, skills, slash commands, plugins, agent SDK changes"
+    domain: agent-orchestration
+  - slug: agent-harness-engineering
+    query: "agent harness engineering — context management, tool dispatch, memory, orchestration patterns"
+    domain: agent-orchestration
+  - slug: mcp-ecosystem
+    query: "Model Context Protocol (MCP) — new servers, spec changes, notable integrations"
+    domain: agent-orchestration
+  - slug: llm-observability-guardrails
+    query: "LLM observability, tracing, evals, and guardrails tooling for production AI"
+    domain: agent-orchestration
+  - slug: rag-retrieval-advances
+    query: "RAG and retrieval advances — hybrid search, re-ranking, agentic retrieval, context engineering"
+    domain: agent-orchestration
+  - slug: open-source-agent-frameworks
+    query: "new open-source autonomous agent frameworks and orchestration libraries on GitHub"
+    domain: agent-orchestration
+  - slug: codex-and-rival-coding-agents
+    query: "OpenAI Codex, Cursor, Aider, and rival AI coding agents — new releases and comparisons"
+    domain: agent-orchestration
+
+  # ---- seo-agents ----
+  - slug: aeo-geo-seo
+    query: "answer engine optimization (AEO) and generative engine optimization (GEO) — new tactics, tools, studies"
+    domain: seo-agents
+  - slug: ai-seo-automation
+    query: "AI-driven SEO automation — Claude Code SEO, backlink automation, programmatic content, LLM citation patterns"
+    domain: seo-agents
+
+  # ---- tech-support-agents ----
+  - slug: ai-itops-helpdesk
+    query: "AI for IT operations and helpdesk — AIOps, autonomous incident response, MSP automation, RMM AI"
+    domain: tech-support-agents
+  - slug: ai-security-threat-intel
+    query: "AI for security operations — Copilot for Security, autonomous threat hunting, CISA KEV / MSRC tooling"
+    domain: tech-support-agents
+
+  # ---- office-ops ----
+  - slug: business-automation-ai
+    query: "AI business/office automation — one-person-company tooling, workflow automation, PSA/HR AI agents"
+    domain: office-ops

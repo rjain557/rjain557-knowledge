@@ -302,6 +302,50 @@ def trigger_lint(max_pair_checks: int = 15):
         raise HTTPException(500, f"Lint failed: {exc}")
 
 
+class RefreshResultModel(BaseModel):
+    status: str
+    themes_refreshed: int
+    total_new_sources: int
+    total_cost_usd: float
+    failed: int
+    duration_seconds: float
+
+
+@app.post("/refresh-topics", response_model=RefreshResultModel,
+          dependencies=[Depends(_check_secret)])
+def trigger_refresh(max_themes: int | None = None):
+    """Weekly curated topic refresh — time-boxed 'what's new' per evergreen
+    theme in config/refresh-topics.yaml. Appends digests to
+    Topics/_refresh-{slug}.md."""
+    from cortex.utils.timezone import now_pacific
+    from cortex.topic_refresh.runner import run_weekly_refresh
+
+    t0 = time.monotonic()
+    log.info("webhook.refresh.start", max_themes=max_themes)
+    try:
+        summary = run_weekly_refresh(max_themes=max_themes)
+        duration = time.monotonic() - t0
+        return RefreshResultModel(
+            status="ok",
+            themes_refreshed=summary["themes_refreshed"],
+            total_new_sources=summary["total_new_sources"],
+            total_cost_usd=summary["total_cost_usd"],
+            failed=summary["failed"],
+            duration_seconds=round(duration, 2),
+        )
+    except Exception as exc:
+        log.error("webhook.refresh.failed", error=str(exc))
+        try:
+            from cortex.mail.notify import send_alert
+            send_alert(
+                subject=f"[Cortex] Topic refresh FAILED at {now_pacific():%Y-%m-%d %H:%M %Z}",
+                body_markdown=f"Weekly topic refresh threw an exception.\n\nError: {exc}",
+            )
+        except Exception:
+            pass
+        raise HTTPException(500, f"Topic refresh failed: {exc}")
+
+
 if __name__ == "__main__":
     import uvicorn
     port = get_settings().webhook_port
