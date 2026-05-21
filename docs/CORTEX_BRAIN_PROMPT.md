@@ -48,6 +48,75 @@ your own scratch space.
 2. Skim the topic titles in `claude-memory/topics/` and `Topics/` — keep
    their names in working memory so you can recognize relevance later.
 
+### Daily self-improvement loop (the important part)
+
+You are not just a passive consumer — **use the brain to actively improve
+THIS repo, and keep doing it as the brain grows.** Run this loop once per
+day (your operator may schedule it; if not, run it at the start of the
+first session each day):
+
+**First run ever (full sweep):**
+1. Read `claude-memory/index.md` + skim every title in `Topics/` and
+   `claude-memory/topics/`.
+2. For each topic that plausibly relates to what THIS repo does, read it
+   in full and ask: *"Does this knowledge suggest a concrete improvement
+   to this repo — a pattern to adopt, a library to try, a bug class to
+   guard against, a better architecture?"*
+3. For each real improvement: implement it directly if low-risk, or write
+   a short proposal to `knowledge/improvements/NN-{slug}.md` in THIS repo
+   and tell the operator.
+4. Record what you reviewed (see "tracking" below).
+
+**Every day after (incremental):**
+1. Read `claude-memory/CHANGELOG.md` and note entries dated AFTER your
+   last check.
+2. List `Topics/` and `claude-memory/topics/` sorted by modified time
+   (`ls -t`) and look at anything newer than your last-check timestamp —
+   including files with a fresh `## Update (YYYY-MM-DD)` section appended
+   (Cortex's synthesizer adds those when new sources refine a topic).
+3. For each genuinely-new or newly-updated item relevant to this repo,
+   run the same "does this suggest an improvement?" evaluation.
+4. If yes → implement (low-risk) or propose (anything bigger). If nothing
+   new is relevant, do nothing and just update the timestamp. Most days
+   will be a no-op — that's fine and expected.
+
+**Tracking what you've already seen** — keep a tiny state file in THIS
+repo so you don't re-review unchanged knowledge:
+
+```
+.cortex-brain/last-check.txt        # ISO date of the last review
+.cortex-brain/reviewed.log          # append-only: "YYYY-MM-DD reviewed <topic> -> <action>"
+```
+
+Recipe to find "what's new since last check":
+
+```bash
+VAULT="C:/Users/Administrator/OneDrive - Technijian, Inc/Documents/obsidian/rjain557-knowledge/rjain557-knowledge"
+LAST=$(cat .cortex-brain/last-check.txt 2>/dev/null || echo "1970-01-01")
+
+# New CHANGELOG entries since last check (entries are dated ## YYYY-MM-DD blocks)
+awk -v d="$LAST" '/^## [0-9]{4}-/{cur=substr($2,1,10)} cur>d' "$VAULT/claude-memory/CHANGELOG.md"
+
+# Topic files modified since last check (covers new topics AND synthesizer ## Update appends)
+find "$VAULT/Topics" "$VAULT/claude-memory/topics" -name '*.md' -newermt "$LAST" -print
+
+# After reviewing, stamp the date:
+date +%Y-%m-%d > .cortex-brain/last-check.txt
+```
+
+The brain updates continuously (hourly mail + GitHub ingestion, nightly
+synthesis + lint), so checking daily means this repo keeps benefiting
+from everything the wider Technijian knowledge stream learns — without
+you re-reading the whole vault every time.
+
+**Improvement discipline:**
+- Only act on improvements that are TRACEABLE to a specific brain note —
+  cite the `vault: path` in your commit message / proposal.
+- Respect lint signals (`⚠️ CONTRADICTION`, `🛑 Verification Notes`) —
+  don't act on a flagged-questionable claim without verifying it.
+- Prefer small, reversible changes. For anything risky, propose rather
+  than implement, and let the operator decide.
+
 ### How to query
 
 **Default — grep over markdown** (always works, no setup):
