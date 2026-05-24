@@ -36,6 +36,7 @@ WORKFLOW_NAME_GITHUB = "Cortex - Hourly GitHub Scan"
 WORKFLOW_NAME_REPO_REVIEW = "Cortex - Daily Repo Review"
 WORKFLOW_NAME_LINT = "Cortex - Daily Wiki Lint"
 WORKFLOW_NAME_REFRESH = "Cortex - Weekly Topic Refresh"
+WORKFLOW_NAME_MODEL_REFRESH = "Cortex - Weekly Model Refresh"
 
 VAULT_KEY = (
     Path.home()
@@ -381,6 +382,84 @@ def build_refresh_workflow(webhook_url: str, webhook_secret: str) -> dict:
     }
 
 
+def build_model_refresh_workflow(webhook_url: str, webhook_secret: str) -> dict:
+    """Weekly model refresh — Mondays 05:00 PT (after the topic refresh).
+    Liveness-checks routed models + researches newer/cheaper options, writing
+    a proposal. Never auto-applies routing."""
+    return {
+        "name": WORKFLOW_NAME_MODEL_REFRESH,
+        "nodes": [
+            {
+                "parameters": {
+                    "rule": {"interval": [{"field": "weeks", "weeksInterval": 1,
+                                           "triggerAtDay": [1],  # Monday
+                                           "triggerAtHour": 5,
+                                           "triggerAtMinute": 0}]}
+                },
+                "id": "trigger-1",
+                "name": "Weekly Mon 05:00",
+                "type": "n8n-nodes-base.scheduleTrigger",
+                "typeVersion": 1.2,
+                "position": [240, 300],
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": webhook_url,
+                    "sendHeaders": True,
+                    "headerParameters": {
+                        "parameters": [
+                            {"name": "X-Webhook-Secret", "value": webhook_secret},
+                            {"name": "Content-Type", "value": "application/json"},
+                        ]
+                    },
+                    "options": {
+                        "timeout": 1800000,
+                        "response": {"response": {"neverError": True}},
+                    },
+                },
+                "id": "http-1",
+                "name": "Refresh Models",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [560, 300],
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "options": {"caseSensitive": True, "typeValidation": "loose"},
+                        "conditions": [
+                            {
+                                "id": "cond-1",
+                                "leftValue": "={{ $json.status }}",
+                                "rightValue": "ok",
+                                "operator": {"type": "string", "operation": "notEquals"},
+                            }
+                        ],
+                        "combinator": "and",
+                    }
+                },
+                "id": "if-1",
+                "name": "Failed?",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 2.2,
+                "position": [880, 300],
+            },
+        ],
+        "connections": {
+            "Weekly Mon 05:00": {"main": [[{"node": "Refresh Models", "type": "main", "index": 0}]]},
+            "Refresh Models":   {"main": [[{"node": "Failed?",        "type": "main", "index": 0}]]},
+        },
+        "settings": {
+            "executionOrder": "v1",
+            "saveExecutionProgress": True,
+            "saveManualExecutions": True,
+            "saveDataErrorExecution": "all",
+            "saveDataSuccessExecution": "all",
+        },
+    }
+
+
 def find_existing(api_key: str, name: str = WORKFLOW_NAME) -> dict | None:
     r = requests.get(f"{N8N_BASE}/workflows", headers=_headers(api_key),
                      verify=False, timeout=15)
@@ -475,7 +554,7 @@ def main() -> None:
                         help="Shared secret (defaults to $WEBHOOK_SECRET)")
     parser.add_argument("--workflow",
                         choices=["mail", "github", "repo-review", "lint",
-                                 "refresh", "all"],
+                                 "refresh", "model-refresh", "all"],
                         default="all",
                         help="Which workflow(s) to upsert (default: all)")
     parser.add_argument("--github-scan-url",
@@ -490,6 +569,9 @@ def main() -> None:
     parser.add_argument("--refresh-url",
                         default="http://10.100.254.200:8765/refresh-topics",
                         help="Cortex /refresh-topics endpoint")
+    parser.add_argument("--model-refresh-url",
+                        default="http://10.100.254.200:8765/model-refresh",
+                        help="Cortex /model-refresh endpoint")
     args = parser.parse_args()
 
     if not args.webhook_secret:
@@ -517,6 +599,10 @@ def main() -> None:
         targets.append((WORKFLOW_NAME_REFRESH,
                         build_refresh_workflow(args.refresh_url,
                                                args.webhook_secret)))
+    if args.workflow in ("model-refresh", "all"):
+        targets.append((WORKFLOW_NAME_MODEL_REFRESH,
+                        build_model_refresh_workflow(args.model_refresh_url,
+                                                     args.webhook_secret)))
 
     if args.dry_run:
         for name, wf in targets:

@@ -8,7 +8,7 @@ import re
 import structlog
 
 from cortex.config import get_domains_config, get_yaml_config
-from cortex.llm import complete
+from cortex.llm import complete_task
 
 log = structlog.get_logger(__name__)
 
@@ -40,12 +40,10 @@ Content (first {max_body_chars} chars):
 Score each domain 0.0–1.0. Return only JSON."""
 
     try:
-        raw = complete(
+        raw = complete_task(
+            "relevance_scoring",
             system=_SYSTEM,
             prompt=prompt,
-            model="claude-haiku-4-5-20251001",
-            max_tokens=128,
-            temperature=0.0,
         )
         scores = _parse_scores(raw, list(domains_cfg.keys()))
     except Exception as exc:

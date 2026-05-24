@@ -1,21 +1,40 @@
 # Cortex / Inbox Brain — Project Guidance
 
-This file is read by Claude Code on every session. It defers to `docs/SPEC.md` for system specification and to the Obsidian vault (see below) for accumulated knowledge.
+This file is read by Claude Code on every session. It defers to `docs/SYSTEM.md` for the as-built system, `docs/SPEC.md` for original design intent, and to the Obsidian vault (see below) for accumulated knowledge.
 
 ## What this project is
 
-A self-improving knowledge brain across three AI domains: **agent-orchestration**, **seo-agents**, **tech-support-agents**. Ingests M365 mail + RSS/arXiv/GitHub trending/benchmark feeds, synthesizes patterns into an Obsidian vault and SQL Server 2025, exposes everything to consumer Claude Code repos via MCP, and reviews itself every 7 days. See `docs/SPEC.md` for the full v4 spec.
+A self-improving knowledge brain across three AI domains: **agent-orchestration**, **seo-agents**, **tech-support-agents**. Ingests M365 mail + RSS/arXiv/GitHub trending/benchmark feeds, synthesizes patterns into an Obsidian vault and SQL Server 2025, exposes everything to consumer Claude Code repos via MCP, and reviews itself every 7 days.
 
-Implementation is pre-Phase-1 — only the spec exists.
+The system is **built and running** (mail/feed ingestion, embeddings, deep research, repo review, lint, topic refresh, model refresh — all live via the webhook server + n8n). For current as-built reality see `docs/SYSTEM.md`; `docs/SPEC.md` is the original v4 design spec retained for intent.
 
 ## Key files (always defer to these)
 
-- `docs/SPEC.md` — full system spec; canonical
+- `docs/SYSTEM.md` — **as-built** system spec; authoritative on current reality
+- `docs/SPEC.md` — original v4 design spec (intent/rationale)
 - `sql/migrations/` — schema source of truth (when added)
 - `config/target-domains.yaml` — the three domains (when added)
 - `config/tracked-feeds.yaml` — direct feed sources (when added)
 - `config/settings.yaml` — reviewer cadence and autonomy bounds (when added)
 - `agents/` — subagent prompts (when added)
+
+## Secrets policy (NON-NEGOTIABLE)
+
+**API keys, tokens, passwords, and certificates NEVER live in this repo.** They
+live ONLY in the OneDrive key vault at
+`C:/Users/Administrator/OneDrive - Technijian, Inc/Documents/VSCODE/keys/*.md`.
+
+- Code loads secrets at runtime via `src/cortex/config.py:_load_vault_secrets()`,
+  which backfills each empty secret field from its vault key file. An explicit
+  env var (e.g. in CI) overrides the vault.
+- `.env` holds **non-secret config only** (hostnames, paths, identifiers, the
+  internal webhook secret). It is gitignored and must never gain a real key.
+- When you need a new provider/credential: add it to the vault key folder, add a
+  field + a `_VAULT_SECRETS` mapping in `config.py`, and reference it by setting
+  name. Do **not** paste the value into `.env`, code, configs, docs, or commits.
+- Never echo a full secret into the terminal, a committed file, or a PR. When a
+  command needs a secret, read it from `.env`/the vault at runtime (e.g.
+  `grep '^X=' .env | cut -d= -f2-`), don't inline it.
 
 ## Memory + Code Intelligence Stack
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import structlog
 
-from cortex.llm import complete
+from cortex.llm import complete_task
 
 log = structlog.get_logger(__name__)
 
@@ -90,12 +90,10 @@ def verify_article(article_markdown: str, citations: list[dict]) -> Verification
     )
 
     try:
-        raw = complete(
+        raw = complete_task(
+            "dr_verifier",
             system=_SYSTEM,
             prompt=prompt,
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1500,
-            temperature=0.0,
         )
         data = _parse_json(raw)
         verdict = data.get("verdict", "failed")

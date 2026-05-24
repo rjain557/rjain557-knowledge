@@ -2,6 +2,11 @@
 
 > Working codename: **Cortex**. Rename freely.
 
+> ⚠️ **This is the original v4 _design_ spec (pre-implementation).** For the
+> current **as-built** system — agents, harnesses, skills, memory, database,
+> workflows, and live model routing — see **[`docs/SYSTEM.md`](SYSTEM.md)**,
+> which is authoritative where the two disagree.
+
 A Claude Code project that builds and continuously self-improves a knowledge brain across three AI domains:
 
 1. **`agent-orchestration`** — autonomous agents, harnesses, multi-agent orchestration patterns

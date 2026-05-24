@@ -25,7 +25,7 @@ import structlog
 from cortex.config import get_settings
 from cortex.db import repositories as repo
 from cortex.db.connection import get_connection
-from cortex.llm import complete
+from cortex.llm import complete_task
 from cortex.repo_review.vault_search import find_relevant_notes
 from cortex.utils.timezone import now_pacific
 
@@ -162,12 +162,10 @@ def _ask_should_update(*, existing_title: str, existing_preview: str,
         f"**Body excerpt:**\n{new_body[:4000]}\n\n"
         f"---\n\nReturn the verdict JSON now."
     )
-    raw = complete(
+    raw = complete_task(
+        "cross_page_synth",
         system=_SYSTEM,
         prompt=user_msg,
-        model="claude-haiku-4-5-20251001",
-        max_tokens=600,
-        temperature=0.1,
     )
     raw = re.sub(r"^```[a-z]*\n?|```\s*$", "", raw.strip(), flags=re.MULTILINE).strip()
     return json.loads(raw)

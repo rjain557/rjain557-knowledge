@@ -32,7 +32,7 @@ import structlog
 
 from cortex.config import get_settings
 from cortex.db.connection import get_connection
-from cortex.llm import complete
+from cortex.llm import complete_task
 from cortex.utils.timezone import now_pacific
 
 log = structlog.get_logger(__name__)
@@ -176,12 +176,10 @@ def _ask_contradiction(a: dict, b: dict) -> dict:
         f"## Note B: {b['title']}\n\n{b['body'][:4000]}\n\n"
         f"Return the verdict JSON now."
     )
-    raw = complete(
+    raw = complete_task(
+        "lint_contradiction",
         system=_CONTRADICTION_SYS,
         prompt=user_msg,
-        model="claude-haiku-4-5-20251001",
-        max_tokens=600,
-        temperature=0.0,
     )
     raw = re.sub(r"^```[a-z]*\n?|```\s*$", "", raw.strip(), flags=re.MULTILINE).strip()
     return json.loads(raw)

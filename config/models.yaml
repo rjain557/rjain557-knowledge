@@ -1,0 +1,125 @@
+# Central LLM routing for Cortex.
+#
+# Each task maps to a PRIMARY provider+model and a FALLBACK used when the
+# primary errors (provider outage, 4xx/5xx, timeout). The pipeline runs
+# unattended, so every cheap task falls back to a known-good Anthropic model
+# rather than failing the cycle.
+#
+# Refreshed every 7 days by scripts/model_refresh.py, which web-checks for
+# newer/cheaper models and writes a proposal to Meta/Proposals/pending/.
+# Picks are NOT applied autonomously — a human edits this file (model routing
+# is a `manual_only` category, same discipline as schema/domain changes).
+#
+# Provider reachability verified from TE-DC-JIAN on 2026-05-24:
+#   - gemini      OK  (no VPN needed). Pinned to gemini-2.5-flash-lite (GA):
+#                 the `-latest` alias resolves to 2.0 Flash-Lite which is
+#                 deprecated (shuts down ~Jun 2026) — flagged by model_refresh.
+#   - anthropic   OK  (primary account, web_search tool)
+#   - deepseek    OK + FUNDED 2026-05-24 (deepseek-v4-flash / deepseek-v4-pro),
+#                 but BOTH V4 models are REASONING models (emit hidden reasoning
+#                 tokens) — wrong fit for short high-volume classification here
+#                 (inflates output cost/latency, truncates JSON under tight
+#                 token budgets). Available for future reasoning-heavy tasks.
+#   - glm/zhipu   US-IP-blocked (needs HK/SG VPN) — excluded from unattended use.
+#   - minimax/kimi/nvidia  available via vault keys; not currently routed.
+
+# Provider connection registry. Anthropic uses the native SDK (needed for the
+# server-side web_search tool). All others are OpenAI-compatible chat endpoints.
+providers:
+  anthropic:
+    kind: anthropic
+  gemini:
+    kind: openai_compatible
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_setting: gemini_api_key
+  deepseek:
+    kind: openai_compatible
+    base_url: https://api.deepseek.com/v1
+    api_key_setting: deepseek_api_key
+  openai:
+    kind: openai_compatible
+    base_url: https://api.openai.com/v1
+    api_key_setting: openai_api_key
+
+# Pricing snapshot (USD per 1M tokens, input/output) as of 2026-05-24.
+# Used only for cost logging/estimates — not for routing decisions.
+pricing:
+  claude-opus-4-7:            {in: 5.00,  out: 25.00}
+  claude-sonnet-4-6:          {in: 3.00,  out: 15.00}
+  claude-haiku-4-5-20251001:  {in: 1.00,  out: 5.00}
+  gemini-2.5-flash-lite:      {in: 0.10,  out: 0.40}
+  gemini-3.1-flash-lite:      {in: 0.10,  out: 0.40}
+  deepseek-v4-flash:          {in: 0.14,  out: 0.28}
+  deepseek-v4-pro:            {in: 0.44,  out: 0.87}
+
+defaults:
+  fallback: {provider: anthropic, model: claude-haiku-4-5-20251001}
+
+# ── Task routing ────────────────────────────────────────────────────────────
+# Cheap/short/factual tasks (reasoning OFF) → Gemini Flash-Lite.
+# Quality-critical or web-search tasks → Claude.
+tasks:
+  relevance_scoring:
+    provider: gemini
+    model: gemini-2.5-flash-lite
+    max_tokens: 256
+    temperature: 0.0
+    fallback: {provider: anthropic, model: claude-haiku-4-5-20251001}
+    note: >
+      Highest-volume task — 0-1 domain classification on every ingested source.
+      Gemini 2.5 Flash-Lite is non-reasoning, returns clean JSON, and was the
+      top 2026 pick for cheap classification. DeepSeek V4-Flash was tried first
+      but is a REASONING model (emits hidden reasoning tokens) — it inflated
+      output cost/latency and truncated the JSON under a tight token budget, so
+      it's a poor fit for short high-volume classification. See db note below.
+
+  dr_verifier:
+    provider: gemini
+    model: gemini-2.5-flash-lite
+    max_tokens: 1500
+    temperature: 0.0
+    fallback: {provider: anthropic, model: claude-haiku-4-5-20251001}
+    note: >
+      Fact-checks deep-research articles (model versions, dates, who-built-what).
+      Flash-Lite had the lowest hallucination rate in 2026 source-faithfulness
+      tests; reasoning is deliberately kept off for verification.
+
+  cross_page_synth:
+    provider: gemini
+    model: gemini-2.5-flash-lite
+    max_tokens: 600
+    temperature: 0.1
+    fallback: {provider: anthropic, model: claude-haiku-4-5-20251001}
+    note: Short relation classification (corroborates/refines/contradicts/tangential).
+
+  lint_contradiction:
+    provider: gemini
+    model: gemini-2.5-flash-lite
+    max_tokens: 600
+    temperature: 0.0
+    fallback: {provider: anthropic, model: claude-haiku-4-5-20251001}
+    note: Semantic NLI between two notes — cheap, short, factual.
+
+  repo_review:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    note: >
+      Reads repo README+commits+tree and produces concrete improvement prompts.
+      Needs strong code understanding + fuzzy "what should improve" judgment.
+      Quality-critical, low volume (~5 repos/day), so kept on Sonnet.
+      Value alternative if cost grows: moonshot kimi-k2.6.
+
+  topic_refresh:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    note: Requires Anthropic server-side web_search tool — must stay on Claude.
+
+  deep_research_auto:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    note: Requires Anthropic server-side web_search tool. ~4x cheaper than Opus.
+
+  deep_research_manual:
+    provider: anthropic
+    model: claude-opus-4-7
+    note: User-initiated, highest quality. Overridable via --model on the CLI.

@@ -2,13 +2,56 @@
 
 from __future__ import annotations
 
-import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
+import structlog
 import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+log = structlog.get_logger(__name__)
+
+# Secrets live ONLY in the OneDrive key vault, never in this repo. Each secret
+# field below is backfilled at runtime from its vault key file when the env var
+# is unset. An explicit env var (e.g. in CI) still wins. See _load_vault_secrets.
+VAULT_KEYS_DIR = Path(
+    r"C:/Users/Administrator/OneDrive - Technijian, Inc/Documents/VSCODE/keys"
+)
+
+# field_name -> (vault filename, regex). If the regex has a capture group it is
+# used, otherwise the whole match is taken.
+_VAULT_SECRETS: dict[str, tuple[str, str]] = {
+    "anthropic_api_key": ("anthropic.md", r"sk-ant-[A-Za-z0-9_\-]+"),
+    "openai_api_key": ("openai.md", r"sk-proj-[A-Za-z0-9_\-]+"),
+    "gemini_api_key": ("gemini.md", r"AIza[0-9A-Za-z_\-]+"),
+    "deepseek_api_key": ("deepseek.md", r"sk-[a-f0-9]{32}"),
+    "github_token": ("github-mcp.md", r"ghp_[A-Za-z0-9]{20,}"),  # skip ghp_YOUR_TOKEN_HERE placeholder
+    "m365_cert_pfx_password": ("m365-agent-harness.md", r"PFX Password:\*\*\s*(\S+)"),
+}
+
+
+def _read_vault_secret(filename: str, pattern: str) -> str:
+    path = VAULT_KEYS_DIR / filename
+    if not path.exists():
+        return ""
+    m = re.search(pattern, path.read_text(encoding="utf-8"))
+    if not m:
+        return ""
+    return m.group(1) if m.groups() else m.group(0)
+
+
+def _load_vault_secrets(settings: "Settings") -> None:
+    """Backfill any empty secret field from its vault key file."""
+    for field, (filename, pattern) in _VAULT_SECRETS.items():
+        if getattr(settings, field, ""):
+            continue  # explicit env var wins
+        val = _read_vault_secret(filename, pattern)
+        if val:
+            setattr(settings, field, val)
+        else:
+            log.warning("config.vault_secret_missing", field=field, file=filename)
 
 
 class Settings(BaseSettings):
@@ -33,6 +76,10 @@ class Settings(BaseSettings):
     # ── OpenAI ────────────────────────────────────────────────────────────
     openai_api_key: str = ""
     openai_embedding_model: str = "text-embedding-3-small"
+
+    # ── Other LLM providers (routed via config/models.yaml) ───────────────
+    gemini_api_key: str = ""
+    deepseek_api_key: str = ""
 
     # ── GitHub ────────────────────────────────────────────────────────────
     github_token: str = ""
@@ -74,7 +121,9 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    _load_vault_secrets(settings)
+    return settings
 
 
 @lru_cache(maxsize=1)
@@ -83,6 +132,16 @@ def get_yaml_config() -> dict:
     cfg_path = repo_root / "config" / "settings.yaml"
     if cfg_path.exists():
         with open(cfg_path) as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
+@lru_cache(maxsize=1)
+def get_models_config() -> dict:
+    repo_root = Path(__file__).parent.parent.parent
+    cfg_path = repo_root / "config" / "models.yaml"
+    if cfg_path.exists():
+        with open(cfg_path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
 

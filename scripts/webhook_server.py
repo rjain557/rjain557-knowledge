@@ -346,6 +346,63 @@ def trigger_refresh(max_themes: int | None = None):
         raise HTTPException(500, f"Topic refresh failed: {exc}")
 
 
+class ModelRefreshResult(BaseModel):
+    status: str
+    date: str
+    dead_models: int
+    recommendations: int
+    proposal_note: str
+    proposal_id: int | None = None
+    duration_seconds: float
+
+
+@app.post("/model-refresh", response_model=ModelRefreshResult,
+          dependencies=[Depends(_check_secret)])
+def trigger_model_refresh(liveness_only: bool = False):
+    """Weekly model-refresh — liveness-check routed models + research newer/
+    cheaper options. Writes a proposal to Meta/Proposals/pending/ and a
+    dbo.proposed_changes row. Never auto-applies routing changes."""
+    from cortex.utils.timezone import now_pacific
+    from cortex.model_refresh.runner import run, run_liveness
+
+    t0 = time.monotonic()
+    log.info("webhook.model_refresh.start", liveness_only=liveness_only)
+    try:
+        if liveness_only:
+            results = run_liveness()
+            dead = [r for r in results if not r["ok"]]
+            return ModelRefreshResult(
+                status="ok",
+                date=now_pacific().strftime("%Y-%m-%d"),
+                dead_models=len(dead),
+                recommendations=0,
+                proposal_note="(liveness-only, no proposal written)",
+                proposal_id=None,
+                duration_seconds=round(time.monotonic() - t0, 2),
+            )
+        summary = run()
+        return ModelRefreshResult(
+            status="ok",
+            date=summary["date"],
+            dead_models=len(summary["dead_models"]),
+            recommendations=len(summary["research"].get("recommendations", [])),
+            proposal_note=summary["proposal_note"],
+            proposal_id=summary["proposal_id"],
+            duration_seconds=round(time.monotonic() - t0, 2),
+        )
+    except Exception as exc:
+        log.error("webhook.model_refresh.failed", error=str(exc))
+        try:
+            from cortex.mail.notify import send_alert
+            send_alert(
+                subject=f"[Cortex] Model refresh FAILED at {now_pacific():%Y-%m-%d %H:%M %Z}",
+                body_markdown=f"Weekly model refresh threw an exception.\n\nError: {exc}",
+            )
+        except Exception:
+            pass
+        raise HTTPException(500, f"Model refresh failed: {exc}")
+
+
 if __name__ == "__main__":
     import uvicorn
     port = get_settings().webhook_port
