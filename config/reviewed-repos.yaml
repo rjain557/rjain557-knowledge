@@ -14,6 +14,14 @@ pr_branch_prefix: cortex-knowledge
 
 # Per-repo settings live alongside the list so the YAML stays declarative.
 repos:
+  - name: rjain557/rjain557-knowledge
+    domain: agent-orchestration
+    notes: >
+      Cortex itself — dogfooding. The brain is richest in exactly this
+      repo's domain (agent orchestration), so the review surfaces
+      improvements drawn from the content Cortex ingests. knowledge/ is
+      isolated from src/, so auto-prompts don't touch code.
+
   - name: technijian-usa/tech-web-myjian
     domain: agent-orchestration
     notes: Python; primary agent-harness codebase. Highest activity.
