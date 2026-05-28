@@ -4,17 +4,17 @@ generated_by: cortex-repo-review
 repo: rjain557/rjain557-knowledge
 domain: agent-orchestration
 impact: high
-effort: M
-generated_at: 2026-05-27T03:02:00.297634-07:00
+effort: M (<1 week)
+generated_at: 2026-05-28T03:02:17.091238-07:00
 ---
 
 # Add a persistent knowledge-graph index to eliminate cold-start orientation cost
 
-**Impact:** high  ·  **Effort:** M
+**Impact:** high  ·  **Effort:** M (<1 week)
 
 ## Rationale
 
-Vault note 'Knowledge Graphs as Codebase Memory' (Topics/claude-code-just-got-a-huge-upgrade-theres-a-free-plugin-cal.md) documents that the dominant bottleneck in agent-orchestration systems is orientation cost — tokens burned re-reading the repo before useful work begins, with pre-computed graph indexes reducing token consumption 70x. Cortex's repo-review and deep-research agents currently re-scan the vault from scratch on every run. Adding a lightweight adjacency/entity graph (e.g. a JSON or SQLite file updated by the nightly lint pass) would let agents jump directly to relevant nodes instead of full-vault traversal.
+Vault note 'Knowledge Graphs as Codebase Memory' (Topics/claude-code-just-got-a-huge-upgrade-theres-a-free-plugin-cal.md) documents that the dominant bottleneck in agentic systems is orientation cost — tokens burned re-reading the repo before useful work begins, with pre-computed graph indexes reducing token consumption by reported 70×. Cortex's own CLAUDE.md and repo-review workflow re-read the vault on every run with no persistent structural index, meaning every Claude Code session pays full orientation cost. Adding a lightweight adjacency/topic graph (JSON or SQLite) that maps vault note paths to topics, backlinks, and embedding clusters would let the repo-review agent and deep-research agent jump directly to relevant nodes.
 
 ## Cited evidence
 
@@ -28,32 +28,36 @@ Working directory: repo root.
 
 Context files to read first:
   - CLAUDE.md
-  - src/  (scan all .py files, note vault-read and synthesis entry points)
-  - knowledge/  (sample 5-10 .md files to understand frontmatter schema)
-  - scripts/  (identify nightly lint / synth scripts)
+  - src/ (scan all .py files for vault read/write paths)
+  - knowledge/ (note the directory structure and any existing index files)
+  - scripts/ (look for any existing indexing or lint scripts)
 
-Goal: Implement a lightweight persistent knowledge graph that is (a) built/updated by the existing nightly lint pass and (b) queryable by the repo-review and deep-research agents so they can skip full-vault scans.
+Task: Build a lightweight vault knowledge-graph index.
 
-Specific changes:
-1. Create src/cortex/graph.py with:
-   - build_graph(vault_dir: Path) -> dict  — walks all .md files, extracts frontmatter tags + [[wikilinks]] + explicit 'related:' fields, returns adjacency dict {slug: {title, tags, links_to: [], linked_from: []}}
-   - save_graph(graph: dict, path: Path)  — writes to knowledge/.graph_index.json (add this file to .gitignore since it's regeneratable)
-   - load_graph(path: Path) -> dict
-   - query_neighbors(graph, slug, depth=2) -> list[str]  — BFS up to depth hops, returns list of slugs
+1. Create `src/cortex/vault_graph.py` with a `VaultGraph` class that:
+   a. Walks `knowledge/` recursively, reads YAML frontmatter (python-frontmatter is already a dependency) from every .md file.
+   b. Extracts: file path, `tags` list, `topic` field, all `[[wikilink]]` references found in the body via regex `r'\[\[([^\]]+)\]\]'`.
+   c. Builds an in-memory dict: `{slug: {"path": str, "tags": list, "links_to": list[slug], "linked_from": list[slug]}}`.
+   d. Persists to `knowledge/_graph.json` (pretty-printed, sorted keys) so it is human-readable and git-diffable.
+   e. Exposes a `query(topic: str) -> list[str]` method that returns the 10 most relevant note paths by tag/topic substring match.
 
-2. Wire build_graph() into the nightly lint script (scripts/ — find the file that runs the lint/synth pass) so the index is refreshed after every vault write.
+2. Add a CLI entry point in `scripts/build_graph.py`:
+   ```python
+   from cortex.vault_graph import VaultGraph
+   VaultGraph().build().save()
+   ```
 
-3. In the repo-review agent entry point (find in src/), before the full vault scan, call load_graph() and use query_neighbors() to pre-filter relevant notes by topic tags, passing only those slugs to the LLM context window.
+3. Wire `build_graph.py` into the existing nightly/hourly scheduler (check `src/cortex/scheduler.py` or equivalent) so the graph rebuilds after every vault-write batch.
+
+4. Update `CLAUDE.md` with a one-paragraph note: 'Before starting any repo-review or deep-research run, read `knowledge/_graph.json` to orient to existing vault structure rather than walking the full directory tree.'
 
 Edge cases:
-  - First run: if .graph_index.json doesn't exist, fall back to full scan and build it.
-  - Circular wikilinks: BFS with a visited set.
-  - Files with no frontmatter: include them with empty tags/links.
-  - The graph file must NOT be committed (add knowledge/.graph_index.json to .gitignore).
+  - Notes with no frontmatter: skip gracefully, log a warning via structlog.
+  - Circular wikilinks: the dict structure handles these naturally; no special handling needed.
+  - Very large vaults (>5 000 notes): use `pathlib.Path.rglob` with a generator, don't load all content into memory at once.
 
 Verification:
-  1. Run: python -c "from src.cortex.graph import build_graph, save_graph; from pathlib import Path; g = build_graph(Path('knowledge')); save_graph(g, Path('knowledge/.graph_index.json')); print(len(g), 'nodes')"
-  2. Confirm .graph_index.json is created and contains expected slugs.
-  3. Run the nightly lint script end-to-end and confirm the graph file is refreshed.
-  4. Add a pytest test in tests/ that builds a graph from a 3-file fixture vault and asserts correct adjacency.
+  - Run `python scripts/build_graph.py` and confirm `knowledge/_graph.json` is created.
+  - Assert the JSON contains at least one entry with non-empty `links_to` or `linked_from`.
+  - Run `python -c "from cortex.vault_graph import VaultGraph; print(VaultGraph().load().query('agent-orchestration'))"` and confirm it returns a non-empty list.
 ```
