@@ -5,7 +5,7 @@ repo: rjain557/rjain557-knowledge
 domain: agent-orchestration
 impact: high
 effort: M (<1 week)
-generated_at: 2026-05-24T07:12:31.038902-07:00
+generated_at: 2026-05-30T03:01:42.047974-07:00
 ---
 
 # Add a persistent knowledge-graph index to eliminate per-session re-orientation cost
@@ -14,7 +14,7 @@ generated_at: 2026-05-24T07:12:31.038902-07:00
 
 ## Rationale
 
-Vault note [3] (Graphify/knowledge-graphs) explicitly identifies 'orientation cost — tokens burned every session re-reading a codebase before a single useful action' as the fundamental bottleneck in AI coding agents, reporting 70× token reductions with a pre-computed graph. Cortex already has a rich vault of interlinked Markdown notes but no structural pre-index; every Claude Code session re-reads raw files. Adding a lightweight graph index (nodes = vault files, edges = [[wikilinks]] + frontmatter tags) queryable via the existing MCP server would let downstream agents navigate the vault in one tool call instead of many file reads.
+Vault note [1] (Graphify/structural pre-indexing) reports 70x token reduction by pre-computing a queryable knowledge graph instead of re-reading the codebase each session. The commit history shows daily 'knowledge refresh' runs that each re-scan the vault from scratch. Pre-building a graph of vault nodes + edges (topic links, source→synthesis relationships) and exposing it via the existing MCP server would let Claude Code orient in one tool call instead of reading dozens of files.
 
 ## Cited evidence
 
@@ -23,45 +23,43 @@ Vault note [3] (Graphify/knowledge-graphs) explicitly identifies 'orientation co
 ## Prompt (paste into Claude Code from repo root)
 
 ```
-Working directory: repo root (rjain557/rjain557-knowledge)
+Working directory: repo root.
 
-Files to read first:
-  - src/  (full tree — understand existing MCP server surface and vault writer)
+Context files to read first:
   - CLAUDE.md
-  - pyproject.toml
-  - docs/  (any spec files, especially the Phase 5.5 / SPEC §3.13 docs)
+  - src/ (list all .py files, then read the MCP server module and the vault-writer module)
+  - knowledge/ (sample 5 markdown files to understand frontmatter schema)
+  - config/ (all YAML files)
 
-Task: Implement a vault knowledge-graph index and expose it through the existing MCP server.
+Task: Implement a lightweight persistent knowledge-graph index for the vault.
 
-Steps:
-1. Create src/cortex/graph/builder.py
-   - Walk the vault directory (config-driven path, same root used by vault writer)
-   - For each .md file: parse frontmatter (python-frontmatter already in deps) to extract tags, domain, date
-   - Extract all [[wikilink]] and [text](relative-path.md) references using a regex
-   - Build a dict: { slug: { "path": str, "tags": list, "domain": str, "links_to": [slug,...], "linked_from": [slug,...] } }
-   - Persist as JSON to a config-driven path (e.g. .cache/vault_graph.json); regenerate if any .md mtime is newer than the cache
+Step 1 – Graph builder script
+Create src/cortex/graph/build_graph.py that:
+  a) Walks every .md file under knowledge/ using python-frontmatter to parse frontmatter.
+  b) Extracts: slug (filename stem), title, tags (list), domain, date, and all [[WikiLink]] or markdown hyperlink targets found in the body.
+  c) Writes a single JSON file at .cache/vault_graph.json with shape:
+     { "nodes": [{"id": slug, "title": ..., "tags": [...], "domain": ...}],
+       "edges": [{"src": slug, "dst": slug, "rel": "links_to"}] }
+  d) Is idempotent – re-running overwrites the file atomically (write to .cache/vault_graph.tmp then rename).
 
-2. Create src/cortex/graph/query.py with three functions:
-   - get_neighbors(slug, depth=1) -> list[dict]  — BFS up to depth hops
-   - search_by_tag(tag) -> list[dict]
-   - find_path(slug_a, slug_b) -> list[str]  — shortest path via BFS
+Step 2 – MCP tool
+In the existing MCP server (find it under src/), add a tool called query_graph(domain: str | None, tag: str | None, limit: int = 20) that:
+  a) Loads .cache/vault_graph.json (cache in memory with a 5-minute TTL using a module-level dict + timestamp).
+  b) Filters nodes by domain and/or tag.
+  c) Returns the top `limit` nodes with their direct neighbors (1-hop).
+  d) Returns a plain dict (FastMCP will serialize it).
 
-3. Register two new MCP tools in the existing FastMCP server (find the server entrypoint under src/):
-   - vault_graph_neighbors(slug: str, depth: int = 1)
-   - vault_graph_search(tag: str)
-   Both should call builder.py to ensure cache is fresh before querying.
-
-4. Add a CLI entry point in scripts/ (e.g. scripts/build_graph.py) that rebuilds the cache on demand.
+Step 3 – Hook into refresh workflow
+Find the nightly/daily refresh script (likely in scripts/). After the vault-write step, call build_graph.py so the graph is always fresh.
 
 Edge cases:
-  - Circular links (BFS visited set)
-  - Slugs with spaces or special chars (normalise to lowercase-hyphen)
-  - Missing link targets (log warning, skip edge — don't crash)
-  - Very large vaults: stream-parse rather than loading all files into memory at once
+  - Broken [[WikiLinks]] that don't resolve to a real file: log a warning, skip the edge, don't crash.
+  - knowledge/ subdirectories: walk recursively.
+  - Files with no frontmatter: use filename as title, empty tags.
 
 Verification:
-  - Run scripts/build_graph.py and confirm .cache/vault_graph.json is created
-  - From a Python REPL: from cortex.graph.query import get_neighbors; print(get_neighbors('some-existing-slug'))
-  - Start the MCP server and call vault_graph_neighbors via the MCP inspector or a curl to confirm JSON response
-  - Add a pytest test in tests/test_graph.py that builds a graph from a small synthetic vault (3 temp .md files with known links) and asserts neighbor counts
+  1. Run: python -m cortex.graph.build_graph and confirm .cache/vault_graph.json is created with >0 nodes and edges.
+  2. Start the MCP server and call query_graph(domain='agent-orchestration', tag=None, limit=5) – confirm it returns nodes.
+  3. Run the builder twice and confirm the file mtime updates but content is stable (idempotent).
+  4. Add .cache/ to .gitignore if not already present.
 ```
